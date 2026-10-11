@@ -122,6 +122,8 @@ async function mmGuestApi(request,env,url){
  }
  if(path==='/api/guest/favorite'&&method==='POST'){
   const b=await mmBody(request);if(!b||!/^[A-Za-z0-9_-]{11}$/.test(b.youtubeId)||typeof b.active!=='boolean')return mmBad('Ongeldige favoriet');
+  const collection=await env.DB.prepare('SELECT content FROM music_shared_collection WHERE id=1').first();
+  if(!collection||!JSON.parse(collection.content).songs.some(s=>s.youtubeId===b.youtubeId))return mmBad('Dit nummer staat niet in de gedeelde collectie',403);
   if(b.active)await env.DB.prepare('INSERT OR IGNORE INTO music_guest_favorites(guest_id,youtube_id,created_at) VALUES(?,?,?)').bind(guest.id,b.youtubeId,mmNow()).run();
   else await env.DB.prepare('DELETE FROM music_guest_favorites WHERE guest_id=? AND youtube_id=?').bind(guest.id,b.youtubeId).run();
   return json({ok:true});
