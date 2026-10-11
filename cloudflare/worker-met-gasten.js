@@ -32,11 +32,6 @@ async function mmBody(req){try{const content=await req.text();if(content.length>
 function mmMutate(req){return req.headers.get('origin')===mmOrigin(req)}
 function mmId(){return crypto.randomUUID()}
 function mmPublicSong(s){return {youtubeId:s.youtubeId,title:String(s.title||'').slice(0,180),artist:String(s.artist||'').slice(0,180),folders:Array.isArray(s.folders)?s.folders.filter(x=>typeof x==='string').slice(0,20):[]}}
-async function mmEmailCode(env,email,code){
- if(!env.RESEND_API_KEY||!env.MUSIC_EMAIL_FROM)throw Error('E-maildienst ontbreekt');
- const result=await fetch('https://api.resend.com/emails',{method:'POST',headers:{authorization:'Bearer '+env.RESEND_API_KEY,'content-type':'application/json'},body:JSON.stringify({from:env.MUSIC_EMAIL_FROM,to:[email],subject:'Mijn Muziek — jouw inlogcode',text:'Je eenmalige inlogcode voor Mijn Muziek is: '+code+'\n\nDeze code is 10 minuten geldig. Heb je niet ingelogd? Negeer dit bericht.'})});
- if(!result.ok)throw Error('E-mail versturen is niet gelukt');
-}
 async function mmGuestApi(request,env,url){
  const path=url.pathname,method=request.method;
  if(path==='/gast'&&method==='GET'){
@@ -84,19 +79,25 @@ async function mmGuestApi(request,env,url){
  if(path==='/api/guest/verify'&&method==='POST'){
   const body=await mmBody(request),email=mmEmail(body?.email),code=String(body?.code||'');
   if(!email||!/^[0-9]{8}$/.test(code))return mmBad('Ongeldige code',400);
-  const guest=await env.DB.prepare("SELECT id FROM music_guests WHERE email=? AND status!='revoked'").bind(email).first();
+  const guest=await env.DB.prepare("SELECT id FROM music_guests WHERE email=? AND status!='revoked' AND revoked_at IS NULL").bind(email).first();
   if(!guest)return mmBad('Ongeldige of verlopen code',401);
-  const c=await env.DB.prepare('SELECT * FROM music_guest_codes WHERE guest_id=? AND consumed_at IS NULL AND expires_at>? ORDER BY created_at DESC LIMIT 1').bind(guest.id,mmNow()).first();
-  if(!c||c.attempts>=5)return mmBad('Ongeldige of verlopen code',401);
-  await env.DB.prepare('UPDATE music_guest_codes SET attempts=attempts+1 WHERE id=?').bind(c.id).run();
+  const c=await env.DB.prepare('SELECT * FROM music_guest_codes WHERE guest_id=? AND consumed_at IS NULL AND expires_at>? AND attempts<5 ORDER BY created_at DESC LIMIT 1').bind(guest.id,mmNow()).first();
+  if(!c)return mmBad('Ongeldige of verlopen code',401);
   const [salt,hash]=c.code_hash.split(':');
-  if(await digest(salt+':'+code)!==hash)return mmBad('Ongeldige of verlopen code',401);
-  await env.DB.prepare('UPDATE music_guest_codes SET consumed_at=? WHERE id=?').bind(mmNow(),c.id).run();
-  await env.DB.prepare("UPDATE music_guests SET status='active' WHERE id=?").bind(guest.id).run();
-  const sid=random(),now=mmNow();
-  await env.DB.prepare('INSERT INTO music_guest_sessions(token_hash,guest_id,created_at,expires_at) VALUES(?,?,?,?)').bind(await digest(sid),guest.id,now,now+30*86400).run();
+  if(await digest(salt+':'+code)!==hash){
+   await env.DB.prepare('UPDATE music_guest_codes SET attempts=attempts+1 WHERE id=? AND consumed_at IS NULL AND expires_at>? AND attempts<5').bind(c.id,mmNow()).run();
+   return mmBad('Ongeldige of verlopen code',401);
+  }
+  const now=mmNow();
+  const claimed=await env.DB.prepare('UPDATE music_guest_codes SET attempts=attempts+1,consumed_at=? WHERE id=? AND consumed_at IS NULL AND expires_at>? AND attempts<5').bind(now,c.id,now).run();
+  if(claimed.meta?.changes!==1)return mmBad('Ongeldige of verlopen code',401);
+  const activated=await env.DB.prepare("UPDATE music_guests SET status='active' WHERE id=? AND status!='revoked' AND revoked_at IS NULL").bind(guest.id).run();
+  if(activated.meta?.changes!==1)return mmBad('Ongeldige of verlopen code',401);
+  const sid=random(),sessionNow=mmNow();
+  await env.DB.prepare('INSERT INTO music_guest_sessions(token_hash,guest_id,created_at,expires_at) VALUES(?,?,?,?)').bind(await digest(sid),guest.id,sessionNow,sessionNow+30*86400).run();
   return new Response(JSON.stringify({ok:true}),{headers:{'content-type':'application/json','cache-control':'no-store','set-cookie':cookie('mm_guest',sid,30*86400)}});
  }
+
  if(path==='/api/guest/logout'&&method==='POST'){
   const sid=mmSid(request,'mm_guest');if(sid)await env.DB.prepare('UPDATE music_guest_sessions SET revoked_at=? WHERE token_hash=?').bind(mmNow(),await digest(sid)).run();
   return new Response(JSON.stringify({ok:true}),{headers:{'content-type':'application/json','cache-control':'no-store','set-cookie':cookie('mm_guest','',0)}});
