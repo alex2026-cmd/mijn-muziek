@@ -99,7 +99,7 @@ export default {
    const headers=new Headers({'authorization':'Bearer '+token.access_token});
    if(request.method!=='GET'){
     const ct=request.headers.get('content-type')||'application/json';
-    if(!/^application\/(json|multipart\/related)/i.test(ct))return json({error:'Ongeldig inhoudstype'},415);
+    if(!/^(application\/json|multipart\/related)/i.test(ct))return json({error:'Ongeldig inhoudstype'},415);
     headers.set('content-type',ct);
    }
    const response=await fetch(dest,{method:request.method,headers,...(request.method==='GET'?{}:{body:request.body}),redirect:'manual'});
