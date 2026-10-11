@@ -24,7 +24,33 @@ function elem(tag,text,cls){var n=document.createElement(tag);if(text!==undefine
 function videoId(link){try{var u=new URL(link),host=u.hostname.replace(/^www\./,'').toLowerCase(),id='';if(host==='youtu.be')id=u.pathname.split('/')[1];else if(['youtube.com','m.youtube.com','music.youtube.com'].includes(host)){id=u.searchParams.get('v')||(u.pathname.match(/^\/(shorts|embed|live)\/([^/]+)/)||[])[2]}return /^[A-Za-z0-9_-]{11}$/.test(id)?id:null}catch(e){return null}}
 function closeMenu(){document.getElementById('mainSidebar').classList.remove('open');$('menuBackdrop').classList.remove('open');$('menuToggle').setAttribute('aria-expanded','false')}function openMenu(){document.getElementById('mainSidebar').classList.add('open');$('menuBackdrop').classList.add('open');$('menuToggle').setAttribute('aria-expanded','true')}function folderView(name){view=name;closeMenu();render()}
 function renderFolders(){var side=$('sideFolders'),tiles=$('folderTiles');side.replaceChildren();tiles.replaceChildren();db.folders.forEach(function(folder,i){var n=db.songs.filter(function(s){return s.folders.includes(folder)}).length;var b=elem('button','📁 '+folder+' ('+n+')');b.onclick=function(){folderView(folder)};side.append(b);var tile=elem('button',folder+'\n'+n+' nummers','tile');tile.style.whiteSpace='pre-line';tile.onclick=function(){folderView(folder)};tiles.append(tile)})}
-function renderTracks(){var tracks=$('tracks');tracks.replaceChildren();var q=$('search').value.trim().toLowerCase();var list=db.songs.filter(function(s){return (view==='all'||view==='favorites'&&s.favorite||s.folders.includes(view))&&[s.title,s.artist,...s.folders].join(' ').toLowerCase().includes(q)});$('listHeading').textContent=view==='all'?'Mijn muziekbibliotheek':view==='favorites'?'Favorieten':view;$('count').textContent=list.length+' nummers';if(!list.length)tracks.append(elem('p','Geen nummers gevonden.','muted'));list.forEach(function(s){var row=elem('div',undefined,'track');var img=elem('img');img.src='https://i.ytimg.com/vi/'+s.youtubeId+'/mqdefault.jpg';img.alt='Miniatuur';var name=elem('button',undefined,'name');name.append(elem('strong',s.title),elem('small',(s.artist||'Onbekende artiest')+' · '+s.folders.join(', ')));name.onclick=function(){play(s)};img.onclick=function(){play(s)};img.style.cursor='pointer';var fav=elem('button',s.favorite?'♥':'♡');fav.title='Favoriet';fav.onclick=function(){s.favorite=!s.favorite;save();renderTracks()};var edit=elem('button','✎');edit.title='Nummer bewerken';edit.onclick=function(){editSong(s)};var del=elem('button','×');del.title='Nummer verwijderen';del.onclick=function(){if(confirm('Nummer verwijderen?')){db.deletedVideos=db.deletedVideos||{};db.deletedVideos[s.youtubeId]=Date.now();localStorage.setItem(DELETE_KEY,JSON.stringify(db.deletedVideos));db.songs=db.songs.filter(function(x){return x!==s});save();render()}};row.append(img,name,fav,edit,del);tracks.append(row)})}
+function renderTracks(){var tracks=$('tracks');tracks.replaceChildren();var q=$('search').value.trim().toLowerCase();var list=db.songs.filter(function(s){return (view==='all'||view==='favorites'&&s.favorite||s.folders.includes(view))&&[s.title,s.artist,...s.folders].join(' ').toLowerCase().includes(q)});$('listHeading').textContent=view==='all'?'Mijn muziekbibliotheek':view==='favorites'?'Favorieten':view;$('count').textContent=list.length+' nummers';if(!list.length)tracks.append(elem('p','Geen nummers gevonden.','muted'));list.forEach(function(s){var row=elem('div',undefined,'track');var img=elem('img');img.src='https://i.ytimg.com/vi/'+s.youtubeId+'/mqdefault.jpg';img.alt='Miniatuur';var name=elem('button',undefined,'name');name.append(elem('strong',s.title),elem('small',(s.artist||'Onbekende artiest')+' · '+s.folders.join(', ')));name.onclick=function(){play(s)};img.onclick=function(){play(s)};img.style.cursor='pointer';var fav=elem('button',s.favorite?'♥':'♡');fav.title='Favoriet';fav.onclick=function(){s.favorite=!s.favorite;save();renderTracks()};var edit=elem('button','✎');edit.title='Nummer bewerken';edit.onclick=function(){editSong(s)};var del=elem('button','×');del.title='Nummer verwijderen';del.onclick=function(){if(confirm('Nummer verwijderen?')){removeSong(s)}};row.append(img,name,fav,edit,del);tracks.append(row)})}
+async function removeSong(song){
+var id=song.youtubeId;
+var deletionTime=Date.now();
+db.deletedVideos=db.deletedVideos||{};
+db.deletedVideos[id]=deletionTime;
+durableDeleted[id]=deletionTime;
+localStorage.setItem(DELETE_KEY,JSON.stringify(durableDeleted));
+db.songs=db.songs.filter(x=>x.youtubeId!==id);
+save();render();
+if(!tokenValid()){statusDrive('Nummer lokaal verwijderd. Verbind Google opnieuw om de verwijdering op andere apparaten door te voeren.');return}
+statusDrive('Verwijdering in Google Drive opslaan…');
+try{
+var file=await findDriveFile();
+if(!file){statusDrive('Nummer lokaal verwijderd. Geen bibliotheek in Drive gevonden.');return}
+var remote=await readDriveFile(file);
+remote.deletedVideos=remote.deletedVideos||{};
+remote.deletedVideos[id]=Math.max(deletionTime,Number(remote.deletedVideos[id]||0));
+remote.songs=remote.songs.filter(x=>x.youtubeId!==id);
+await writeDriveFile(file,remote);
+var verified=await readDriveFile(file);
+if(verified.songs.some(x=>x.youtubeId===id)||!Object.prototype.hasOwnProperty.call(verified.deletedVideos||{},id))throw Error('Google Drive bevestigt de verwijdering nog niet');
+pendingSyncWrite=true;
+scheduleAutoSync();
+statusDrive('Verwijdering bevestigd in Google Drive. Nummer is ook op andere apparaten verwijderd na hun volgende sync.');
+}catch(e){statusDrive('Lokaal verwijderd, maar Drive-verwijdering niet bevestigd: '+e.message+' · probeer Google opnieuw te verbinden.')}
+}
 function renderArtists(){var holder=$('artists');holder.replaceChildren();db.artists.forEach(function(a){var row=elem('div',undefined,'row');row.style.marginBottom='8px';row.append(elem('span','🎤 '+a));var edit=elem('button','✎','ghost');edit.onclick=function(){var newer=prompt('Naam van de artiest',a);if(!newer||!newer.trim())return;newer=newer.trim();db.songs.forEach(function(s){if(s.artist===a)s.artist=newer});db.artists=db.artists.map(function(x){return x===a?newer:x});save();render()};row.append(edit);holder.append(row)});if(!db.artists.length)holder.append(elem('p','Nog geen artiesten toegevoegd.','muted'))}
 function render(){renderFolders();renderTracks();renderArtists();updateHero(current)}
 function updatePlayButton(){ $('footPlay').textContent=isPlaying?'❚❚':'▶';$('footPlay').title=isPlaying?'Pauzeren':'Afspelen' }
