@@ -46,3 +46,5 @@ CREATE TABLE IF NOT EXISTS music_guest_playlist_tracks (
   position INTEGER NOT NULL,
   PRIMARY KEY (playlist_id, youtube_id)
 );
+
+CREATE TABLE IF NOT EXISTS music_shared_collection (id INTEGER PRIMARY KEY CHECK(id=1), content TEXT NOT NULL, updated_at INTEGER NOT NULL);
