@@ -127,8 +127,8 @@ if(shouldWrite&&localRevision===startRevision){syncedRevision=localRevision;pend
 else if(localRevision!==startRevision){pendingSyncWrite=true}
 statusDrive((shouldWrite?'Automatisch opgeslagen':'Bijgewerkt uit Google Drive')+' · '+db.songs.length+' nummers');
 }catch(err){
-statusDrive('Automatische sync niet gelukt: '+err.message+' · handmatig proberen');
-autoEnabled=false;localStorage.setItem('mijn-muziek-autosync','no');updateAutoUI()
+statusDrive('Synchronisatie tijdelijk niet gelukt: '+err.message+' · Automatische sync blijft '+(autoEnabled?'AAN':'UIT')+'. Probeer straks opnieuw.');
+// Een tijdelijke fout mag de eerder gekozen instelling nooit uitschakelen.
 }finally{
 autoBusy=false;
 if(pendingSyncWrite&&autoEnabled&&tokenValid()){pendingSyncWrite=false;scheduleAutoSync()}
