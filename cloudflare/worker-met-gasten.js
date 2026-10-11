@@ -54,11 +54,15 @@ async function mmGuestApi(request,env,url){
   if(path==='/api/music-admin/guests'&&method==='POST'){
    const body=await mmBody(request),email=mmEmail(body?.email);if(!email)return mmBad('Ongeldig e-mailadres');
    const existing=await env.DB.prepare('SELECT id,status FROM music_guests WHERE email=?').bind(email).first();
-   if(existing&&existing.status!=='revoked')return mmBad('Deze gast is al uitgenodigd',409);
    const guestId=existing?.id||mmId(),now=mmNow();
-   if(existing)await env.DB.prepare("UPDATE music_guests SET status='invited',revoked_at=NULL WHERE id=?").bind(guestId).run();
+   if(existing){if(existing.status==='revoked')return mmBad('Deze gast is geblokkeerd; heractiveren is niet toegestaan',403)}
    else await env.DB.prepare("INSERT INTO music_guests(id,email,status,created_at) VALUES(?,?,'invited',?)").bind(guestId,email,now).run();
-   return json({ok:true,email,shareUrl:mmOrigin(request)+'/gast'});
+   const digits=new Uint32Array(1);crypto.getRandomValues(digits);
+   const code=String(digits[0]%100000000).padStart(8,'0');
+   const salt=random(16),hash=await digest(salt+':'+code);
+   await env.DB.prepare('UPDATE music_guest_codes SET consumed_at=? WHERE guest_id=? AND consumed_at IS NULL').bind(now,guestId).run();
+   await env.DB.prepare('INSERT INTO music_guest_codes(id,guest_id,code_hash,expires_at,created_at) VALUES(?,?,?,?,?)').bind(mmId(),guestId,salt+':'+hash,now+86400,now).run();
+   return json({ok:true,email,code,expiresHours:24,shareUrl:mmOrigin(request)+'/gast'});
   }
   if(path==='/api/music-admin/revoke'&&method==='POST'){
    const body=await mmBody(request);if(!body||typeof body.id!=='string')return mmBad('Ongeldige gast');
@@ -77,24 +81,9 @@ async function mmGuestApi(request,env,url){
   }
   return mmBad('Onbekende beheerdersroute',404);
  }
- if(path==='/api/guest/send-code'&&method==='POST'){
-  const body=await mmBody(request),email=mmEmail(body?.email);if(!email)return mmBad('Ongeldig e-mailadres');
-  const guest=await env.DB.prepare("SELECT id,email,status FROM music_guests WHERE email=? AND status!='revoked'").bind(email).first();
-  // Return identical success even if an address is not invited.
-  if(!guest)return json({ok:true});
-  const now=mmNow();
-  const recent=await env.DB.prepare('SELECT COUNT(*) AS n FROM music_guest_codes WHERE guest_id=? AND created_at>?').bind(guest.id,now-3600).first();
-  if(recent?.n>=5)return mmBad('Te veel aanvragen; probeer het later opnieuw',429);
-  const code=String(crypto.getRandomValues(new Uint32Array(1))[0]%1000000).padStart(6,'0');
-  const salt=random(16),hash=await digest(salt+':'+code);
-  const id=mmId();
-  await env.DB.prepare('INSERT INTO music_guest_codes(id,guest_id,code_hash,expires_at,created_at) VALUES(?,?,?,?,?)').bind(id,guest.id,salt+':'+hash,now+600,now).run();
-  try{await mmEmailCode(env,email,code)}catch{return mmBad('De e-maildienst is nog niet ingesteld of niet beschikbaar',503)}
-  return json({ok:true});
- }
  if(path==='/api/guest/verify'&&method==='POST'){
   const body=await mmBody(request),email=mmEmail(body?.email),code=String(body?.code||'');
-  if(!email||!/^[0-9]{6}$/.test(code))return mmBad('Ongeldige code',400);
+  if(!email||!/^[0-9]{8}$/.test(code))return mmBad('Ongeldige code',400);
   const guest=await env.DB.prepare("SELECT id FROM music_guests WHERE email=? AND status!='revoked'").bind(email).first();
   if(!guest)return mmBad('Ongeldige of verlopen code',401);
   const c=await env.DB.prepare('SELECT * FROM music_guest_codes WHERE guest_id=? AND consumed_at IS NULL AND expires_at>? ORDER BY created_at DESC LIMIT 1').bind(guest.id,mmNow()).first();
