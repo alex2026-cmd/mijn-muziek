@@ -32,6 +32,28 @@ async function mmBody(req){try{const content=await req.text();if(content.length>
 function mmMutate(req){return req.headers.get('origin')===mmOrigin(req)}
 function mmId(){return crypto.randomUUID()}
 function mmPublicSong(s){return {youtubeId:s.youtubeId,title:String(s.title||'').slice(0,180),artist:String(s.artist||'').slice(0,180),folders:Array.isArray(s.folders)?s.folders.filter(x=>typeof x==='string').slice(0,20):[]}}
+
+// Passwords: PBKDF2-SHA256 with unique random salt, never store plaintext.
+async function mmPasswordHash(password,salt=random(24)){
+ const imported=await crypto.subtle.importKey('raw',encoder.encode(password),'PBKDF2',false,['deriveBits']);
+ const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:unb64(salt),iterations:240000,hash:'SHA-256'},imported,256);
+ return salt+'.'+b64(new Uint8Array(bits));
+}
+async function mmPasswordValid(password,stored){
+ if(!stored||typeof stored!=='string')return false;
+ const [salt,expected]=stored.split('.');if(!salt||!expected)return false;
+ const actual=await mmPasswordHash(password,salt);
+ const a=encoder.encode(actual),b=encoder.encode(stored);
+ if(a.length!==b.length)return false;
+ let diff=0;for(let i=0;i<a.length;i++)diff|=a[i]^b[i];return diff===0;
+}
+function mmPasswordOk(s){return typeof s==='string'&&s.length>=12&&s.length<=128}
+async function mmGuestSession(env,guestId){
+ const sid=random(),now=mmNow();
+ await env.DB.prepare('INSERT INTO music_guest_sessions(token_hash,guest_id,created_at,expires_at) VALUES(?,?,?,?)').bind(await digest(sid),guestId,now,now+30*86400).run();
+ return new Response(JSON.stringify({ok:true}),{headers:{'content-type':'application/json','cache-control':'no-store','set-cookie':cookie('mm_guest',sid,30*86400)}});
+}
+
 async function mmGuestApi(request,env,url){
  const path=url.pathname,method=request.method;
  if(path==='/gast'&&method==='GET'){
@@ -76,10 +98,11 @@ async function mmGuestApi(request,env,url){
   }
   return mmBad('Onbekende beheerdersroute',404);
  }
+
  if(path==='/api/guest/verify'&&method==='POST'){
-  const body=await mmBody(request),email=mmEmail(body?.email),code=String(body?.code||'');
-  if(!email||!/^[0-9]{8}$/.test(code))return mmBad('Ongeldige code',400);
-  const guest=await env.DB.prepare("SELECT id FROM music_guests WHERE email=? AND status!='revoked' AND revoked_at IS NULL").bind(email).first();
+  const body=await mmBody(request),email=mmEmail(body?.email),code=String(body?.code||''),password=body?.password;
+  if(!email||!/^[0-9]{8}$/.test(code)||!mmPasswordOk(password))return mmBad('Vul een geldige code en een wachtwoord van minimaal 12 tekens in');
+  const guest=await env.DB.prepare("SELECT id,password_hash FROM music_guests WHERE email=? AND status!='revoked' AND revoked_at IS NULL").bind(email).first();
   if(!guest)return mmBad('Ongeldige of verlopen code',401);
   const c=await env.DB.prepare('SELECT * FROM music_guest_codes WHERE guest_id=? AND consumed_at IS NULL AND expires_at>? AND attempts<5 ORDER BY created_at DESC LIMIT 1').bind(guest.id,mmNow()).first();
   if(!c)return mmBad('Ongeldige of verlopen code',401);
@@ -88,21 +111,46 @@ async function mmGuestApi(request,env,url){
    await env.DB.prepare('UPDATE music_guest_codes SET attempts=attempts+1 WHERE id=? AND consumed_at IS NULL AND expires_at>? AND attempts<5').bind(c.id,mmNow()).run();
    return mmBad('Ongeldige of verlopen code',401);
   }
-  const now=mmNow();
+  const newHash=await mmPasswordHash(password),now=mmNow();
   const claimed=await env.DB.prepare('UPDATE music_guest_codes SET attempts=attempts+1,consumed_at=? WHERE id=? AND consumed_at IS NULL AND expires_at>? AND attempts<5').bind(now,c.id,now).run();
   if(claimed.meta?.changes!==1)return mmBad('Ongeldige of verlopen code',401);
-  const activated=await env.DB.prepare("UPDATE music_guests SET status='active' WHERE id=? AND status!='revoked' AND revoked_at IS NULL").bind(guest.id).run();
-  if(activated.meta?.changes!==1)return mmBad('Ongeldige of verlopen code',401);
-  const sid=random(),sessionNow=mmNow();
-  await env.DB.prepare('INSERT INTO music_guest_sessions(token_hash,guest_id,created_at,expires_at) VALUES(?,?,?,?)').bind(await digest(sid),guest.id,sessionNow,sessionNow+30*86400).run();
-  return new Response(JSON.stringify({ok:true}),{headers:{'content-type':'application/json','cache-control':'no-store','set-cookie':cookie('mm_guest',sid,30*86400)}});
+  const activated=await env.DB.prepare("UPDATE music_guests SET status='active',password_hash=? WHERE id=? AND status!='revoked' AND revoked_at IS NULL").bind(newHash,guest.id).run();
+  if(activated.meta?.changes!==1)return mmBad('Account niet beschikbaar',403);
+  await env.DB.prepare('UPDATE music_guest_sessions SET revoked_at=? WHERE guest_id=? AND revoked_at IS NULL').bind(now,guest.id).run();
+  return mmGuestSession(env,guest.id);
  }
-
+ if(path==='/api/guest/login'&&method==='POST'){
+  const b=await mmBody(request),email=mmEmail(b?.email),password=b?.password;
+  if(!email||typeof password!=='string'||password.length>128)return mmBad('Ongeldige inloggegevens',401);
+  const g=await env.DB.prepare("SELECT id,password_hash,failed_logins,locked_until FROM music_guests WHERE email=? AND status='active' AND revoked_at IS NULL").bind(email).first();
+  if(!g||!g.password_hash)return mmBad('Ongeldige inloggegevens',401);
+  const now=mmNow();
+  if(Number(g.locked_until||0)>now)return mmBad('Te veel pogingen; probeer later opnieuw',429);
+  if(!await mmPasswordValid(password,g.password_hash)){
+   const attempts=Number(g.failed_logins||0)+1,lock=attempts>=5?now+900:null;
+   await env.DB.prepare('UPDATE music_guests SET failed_logins=?,locked_until=? WHERE id=?').bind(attempts>=5?0:attempts,lock,g.id).run();
+   return mmBad('Ongeldige inloggegevens',401);
+  }
+  await env.DB.prepare('UPDATE music_guests SET failed_logins=0,locked_until=NULL WHERE id=?').bind(g.id).run();
+  return mmGuestSession(env,g.id);
+ }
  if(path==='/api/guest/logout'&&method==='POST'){
   const sid=mmSid(request,'mm_guest');if(sid)await env.DB.prepare('UPDATE music_guest_sessions SET revoked_at=? WHERE token_hash=?').bind(mmNow(),await digest(sid)).run();
   return new Response(JSON.stringify({ok:true}),{headers:{'content-type':'application/json','cache-control':'no-store','set-cookie':cookie('mm_guest','',0)}});
  }
  const guest=await mmGuest(request,env);if(!guest)return mmBad('Niet aangemeld',401);
+ if(path==='/api/guest/change-password'&&method==='POST'){
+  const b=await mmBody(request);
+  if(!mmPasswordOk(b?.newPassword)||typeof b?.oldPassword!=='string')return mmBad('Nieuw wachtwoord moet minimaal 12 tekens bevatten');
+  const g=await env.DB.prepare('SELECT password_hash FROM music_guests WHERE id=?').bind(guest.id).first();
+  if(!await mmPasswordValid(b.oldPassword,g?.password_hash))return mmBad('Huidig wachtwoord is onjuist',401);
+  if(b.oldPassword===b.newPassword)return mmBad('Kies een ander wachtwoord');
+  const hash=await mmPasswordHash(b.newPassword);
+  await env.DB.prepare('UPDATE music_guests SET password_hash=? WHERE id=?').bind(hash,guest.id).run();
+  const sid=mmSid(request,'mm_guest');
+  await env.DB.prepare('UPDATE music_guest_sessions SET revoked_at=? WHERE guest_id=? AND token_hash!=?').bind(mmNow(),guest.id,await digest(sid)).run();
+  return json({ok:true});
+ }
  if(path==='/api/guest/data'&&method==='GET'){
   const shared=await env.DB.prepare('SELECT content FROM music_shared_collection WHERE id=1').first();
   const fav=await env.DB.prepare('SELECT youtube_id FROM music_guest_favorites WHERE guest_id=?').bind(guest.id).all();
