@@ -94,11 +94,23 @@ iframe{display:block;width:100%;aspect-ratio:16/9;border:0;border-radius:12px;ba
  .toast{bottom:16px}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+.account-controls{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.account-settings{max-width:540px;margin:0 auto 18px}.account-settings .fields{max-width:100%}.login-choice{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.login-choice button{flex:1;min-width:120px}.login-choice button.selected{border-color:#ff79bd;background:#613563}.fields input[type=password]{width:100%}
 </style></head><body>
-<header><b>♫ Mijn <span>Muziek</span> <small class="small">Gast</small></b><div><span id="who" class="small"></span> <button id="logout" class="muted hidden">Uitloggen</button></div></header>
+<header><b>♫ Mijn <span>Muziek</span> <small class="small">Gast</small></b><div><span id="who" class="small"></span> <button id="settingsToggle" class="muted hidden" type="button">Mijn account</button> <button id="logout" class="muted hidden">Uitloggen</button></div></header>
 <main class="container">
 <section id="login" class="card"><h2>Welkom bij Mijn Muziek</h2><p>Je kunt hier luisteren naar de gedeelde muziekcollectie. Je eigen favorieten en afspeellijsten zijn privé.</p>
-<div class="fields"><label>E-mailadres<input id="email" type="email" autocomplete="email" placeholder="jij@voorbeeld.nl"></label><div id="codeArea"><label>Eenmalige code<input id="code" inputmode="numeric" maxlength="8" pattern="[0-9]{8}" autocomplete="one-time-code" placeholder="123456"></label><p class="small">De persoonlijke uitnodigingscode ontvang je van de beheerder. Deze is 24 uur geldig en eenmalig te gebruiken.</p><button id="verify" class="btn">Inloggen</button></div></div><p id="loginMsg" class="small" role="status"></p></section>
+<div class="fields"><label>E-mailadres<input id="email" type="email" autocomplete="username" placeholder="jij@voorbeeld.nl"></label>
+<div class="login-choice"><button id="chooseLogin" type="button" class="muted selected">Inloggen</button><button id="chooseActivation" type="button" class="muted">Eerste keer / herstelcode</button></div>
+<div id="passwordLogin"><label>Wachtwoord<input id="loginPassword" type="password" autocomplete="current-password"></label><button id="loginPasswordButton" type="button" class="btn">Inloggen</button></div>
+<div id="codeArea" class="hidden"><label>Eenmalige uitnodigings- of herstelcode<input id="code" inputmode="numeric" maxlength="8" pattern="[0-9]{8}" autocomplete="one-time-code" placeholder="12345678"></label>
+<label>Kies een nieuw wachtwoord<input id="activationPassword" type="password" autocomplete="new-password" minlength="12"></label>
+<label>Herhaal nieuw wachtwoord<input id="activationConfirm" type="password" autocomplete="new-password" minlength="12"></label>
+<p class="small">De code ontvang je van de beheerder. Deze is 24 uur geldig en één keer te gebruiken. Je wachtwoord moet minstens 12 tekens hebben.</p><button id="verify" type="button" class="btn">Wachtwoord instellen en aanmelden</button></div></div><p id="loginMsg" class="small" role="status"></p></section>
+<section id="accountSettings" class="card account-settings hidden"><h2>Mijn account · wachtwoord wijzigen</h2><div class="fields">
+<label>Huidig wachtwoord<input id="oldPassword" type="password" autocomplete="current-password"></label>
+<label>Nieuw wachtwoord (minimaal 12 tekens)<input id="newPassword" type="password" autocomplete="new-password" minlength="12"></label>
+<label>Herhaal nieuw wachtwoord<input id="newPasswordAgain" type="password" autocomplete="new-password" minlength="12"></label>
+<div class="bar"><button id="changePassword" type="button" class="btn">Wachtwoord opslaan</button><button id="cancelSettings" type="button" class="muted">Sluiten</button></div><p id="passwordMessage" class="small" role="status"></p></div></section>
 <section id="app" class="hidden">
 <div class="bar toolbar">
  <input id="search" type="search" placeholder="Zoeken in muziek…" aria-label="Zoeken in de muziekcollectie">
@@ -150,7 +162,7 @@ const $=id=>document.getElementById(id);let state=null,onlyFav=false,activeList=
 async function api(path,method='GET',body){const res=await fetch(path,{method,credentials:'same-origin',headers:body?{'content-type':'application/json'}:{},body:body?JSON.stringify(body):undefined,cache:'no-store'});let data=await res.json().catch(()=>({error:'Onbekende reactie'}));if(!res.ok)throw Error(data.error||'Aanvraag mislukt');return data}
 function el(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n}
 function button(label,action,cls='muted'){const b=el('button',label,cls);b.onclick=action;return b}
-async function load(){try{state=await api('/api/guest/data');$('login').classList.add('hidden');$('app').classList.remove('hidden');$('logout').classList.remove('hidden');$('who').textContent=state.email;const folder=$('folder');folder.replaceChildren(new Option('Alle mappen',''));for(const f of state.collection.folders)folder.add(new Option(f,f));render()}catch(e){state=null;$('app').classList.add('hidden');$('login').classList.remove('hidden');$('logout').classList.add('hidden')}}
+async function load(){try{state=await api('/api/guest/data');$('login').classList.add('hidden');$('app').classList.remove('hidden');$('logout').classList.remove('hidden');$('settingsToggle').classList.remove('hidden');$('who').textContent=state.email;const folder=$('folder');folder.replaceChildren(new Option('Alle mappen',''));for(const f of state.collection.folders)folder.add(new Option(f,f));render()}catch(e){state=null;$('app').classList.add('hidden');$('login').classList.remove('hidden');$('logout').classList.add('hidden');$('settingsToggle').classList.add('hidden');$('accountSettings').classList.add('hidden')}}
 function songById(id){return state.collection.songs.find(s=>s.youtubeId===id)}
 function play(song){const box=$('player');box.replaceChildren();const frame=el('iframe');frame.title='YouTube · '+song.title;frame.src='https://www.youtube-nocookie.com/embed/'+encodeURIComponent(song.youtubeId)+'?autoplay=1&rel=0&playsinline=1';frame.allow='autoplay;encrypted-media;picture-in-picture;fullscreen';frame.allowFullscreen=true;box.append(frame);$('playing').textContent=song.title+(song.artist?' — '+song.artist:'')}
 async function favorite(song){const next=!state.favorites.includes(song.youtubeId);try{await api('/api/guest/favorite','POST',{youtubeId:song.youtubeId,active:next});state.favorites=next?[...state.favorites,song.youtubeId]:state.favorites.filter(id=>id!==song.youtubeId);render()}catch(e){showError(e)}}
@@ -186,7 +198,16 @@ $('cancelAdd').onclick=closePlaylistModal;
 $('closeModal').onclick=closePlaylistModal;
 $('playlistModal').onclick=e=>{if(e.target===$('playlistModal'))closePlaylistModal()};
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closePlaylistModal()});
-$('verify').onclick=async()=>{try{await api('/api/guest/verify','POST',{email:$('email').value.trim(),code:$('code').value.trim()});$('loginMsg').textContent='';await load()}catch(e){$('loginMsg').textContent=e.message}};
+function loginMode(activate){$('codeArea').classList.toggle('hidden',!activate);$('passwordLogin').classList.toggle('hidden',activate);$('chooseLogin').classList.toggle('selected',!activate);$('chooseActivation').classList.toggle('selected',activate);$('loginMsg').textContent=''}
+$('chooseLogin').onclick=()=>loginMode(false);
+$('chooseActivation').onclick=()=>loginMode(true);
+$('loginPasswordButton').onclick=async()=>{try{await api('/api/guest/login','POST',{email:$('email').value.trim(),password:$('loginPassword').value});$('loginPassword').value='';$('loginMsg').textContent='';await load()}catch(e){$('loginMsg').textContent=e.message}};
+$('verify').onclick=async()=>{const password=$('activationPassword').value;if(password.length<12||password!==$('activationConfirm').value){$('loginMsg').textContent='Gebruik minimaal 12 tekens en vul twee keer hetzelfde wachtwoord in.';return}
+try{await api('/api/guest/verify','POST',{email:$('email').value.trim(),code:$('code').value.trim(),password});$('activationPassword').value='';$('activationConfirm').value='';$('code').value='';$('loginMsg').textContent='';await load()}catch(e){$('loginMsg').textContent=e.message}};
+$('settingsToggle').onclick=()=>{$('accountSettings').classList.toggle('hidden');$('passwordMessage').textContent=''};
+$('cancelSettings').onclick=()=>{$('accountSettings').classList.add('hidden')};
+$('changePassword').onclick=async()=>{const oldPassword=$('oldPassword').value,newPassword=$('newPassword').value;if(newPassword.length<12||newPassword!==$('newPasswordAgain').value){$('passwordMessage').textContent='Het nieuwe wachtwoord moet minimaal 12 tekens hebben en beide velden moeten gelijk zijn.';return}
+try{await api('/api/guest/change-password','POST',{oldPassword,newPassword});for(const id of ['oldPassword','newPassword','newPasswordAgain'])$(id).value='';$('passwordMessage').textContent='Je wachtwoord is gewijzigd.'}catch(e){$('passwordMessage').textContent=e.message}};
 $('logout').onclick=async()=>{await api('/api/guest/logout','POST',{}).catch(()=>{});state=null;location.reload()};
 $('folder').onchange=()=>{activeList=null;render()};$('search').oninput=()=>{activeList=null;render()};$('onlyFav').onclick=()=>{onlyFav=!onlyFav;activeList=null;render()};load();
 </script></body></html>
