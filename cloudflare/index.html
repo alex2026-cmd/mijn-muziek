@@ -6,7 +6,7 @@
 .discover-result>img{grid-column:2;width:94px;max-width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px}
 .discover-result-info{grid-column:3;min-width:0;overflow:hidden}
 .discover-result-info strong{display:block;font-size:13px;line-height:1.35;overflow-wrap:anywhere}
-.discover-result-info small{display:block;margin:4px 0 0;color:#bca5c8;font-size:12px}
+.discover-result-info small{display:block;margin:4px 0 0;color:#bca5c8;font-size:12px}.discover-library-status{color:#9ce0b6!important;font-weight:600}
 .discover-result-actions{grid-column:4;display:flex;flex-direction:column;gap:7px}
 .discover-result-actions .ghost{white-space:nowrap;padding:7px 9px;font-size:12px}
 .discover-result.preview-open{border-color:#ae75bd;background:#402a4f}
@@ -109,7 +109,7 @@ async function loadDiscover(more){
    if(discoverSeen.has(item.youtubeId))return;discoverSeen.add(item.youtubeId);discoverCount++;
    var row=elem('div',undefined,'discover-result'),number=elem('span',String(discoverCount),'discover-result-number'),img=elem('img');img.src=item.thumbnail;img.alt='';
    var info=elem('div',undefined,'discover-result-info');info.append(elem('strong',item.title),elem('small',item.channel));
-   var existing=db.songs.find(x=>x.youtubeId===item.youtubeId);var preview=elem('button','▶ Voorbeeld','ghost');preview.type='button';preview.onclick=function(){openDiscoverPreview(item,row)};var button=elem('button',existing?'＋ Koppelen':'＋ Toevoegen','ghost');
+   var existing=db.songs.find(x=>x.youtubeId===item.youtubeId);if(existing){var mark=elem('small','✓ In bibliotheek','discover-library-status');info.append(mark)}var preview=elem('button','▶ Voorbeeld','ghost');preview.type='button';preview.title='Bekijk en beluister deze video zonder hem op te slaan';preview.onclick=function(){openDiscoverPreview(item,row)};var button=elem('button',existing?'＋ Koppelen':'＋ Toevoegen','ghost');button.title=existing?'Dit nummer staat al in je bibliotheek. Koppel het aan een map, submap of afspeellijst.':'Voeg dit nieuwe nummer toe aan je muziekbibliotheek.';
    button.onclick=function(){
     closeDiscoverPreview();
     if(existing){addSongToPlaylist(existing);return}
