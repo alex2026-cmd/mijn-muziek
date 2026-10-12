@@ -36,7 +36,7 @@ function mmPublicSong(s){return {youtubeId:s.youtubeId,title:String(s.title||'')
 // Passwords: PBKDF2-SHA256 with unique random salt, never store plaintext.
 async function mmPasswordHash(password,salt=random(24)){
  const imported=await crypto.subtle.importKey('raw',encoder.encode(password),'PBKDF2',false,['deriveBits']);
- const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:unb64(salt),iterations:240000,hash:'SHA-256'},imported,256);
+ const bits=await crypto.subtle.deriveBits({name:'PBKDF2',salt:unb64(salt),iterations:100000,hash:'SHA-256'},imported,256);
  return salt+'.'+b64(new Uint8Array(bits));
 }
 async function mmPasswordValid(password,stored){
