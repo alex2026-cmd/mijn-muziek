@@ -207,17 +207,19 @@ $('songForm').onsubmit=function(e){
  try{
   var id=videoId($('songUrl').value);
   if(!id){$('songError').textContent='Controleer de YouTube-link. De wijzigingen zijn nog niet opgeslagen.';return}
-  var duplicate=db.songs.find(song=>song.youtubeId===id&&song!==editing);
+  var original=editing?(db.songs.find(song=>song.id===editing.id&&song.youtubeId===editing.youtubeId)||db.songs.find(song=>song.youtubeId===editing.youtubeId)):null;
+  var duplicate=db.songs.find(song=>song.youtubeId===id&&song!==original);
   if(duplicate){$('songError').textContent='Dit nummer bestaat al in je bibliotheek: '+duplicate.title+'.';return}
+  if(editing&&!original){$('songError').textContent='Het oorspronkelijke nummer is niet gevonden. Open de bewerking opnieuw.';return}
   var selected=chosenFolders.slice(),artist=$('songArtist').value.trim(),title=$('songTitle').value.trim()||'YouTube-nummer '+id;
   if(artist&&!db.artists.includes(artist))db.artists.push(artist);
   db.deletedVideos=db.deletedVideos||{};delete db.deletedVideos[id];
   var wasEditing=!!editing;
   if(wasEditing){
-   var beforeId=editing.youtubeId;
-   editing.youtubeId=id;editing.title=title;editing.artist=artist;editing.folders=selected;editing.updatedAt=Date.now();
-   if(current===editing){$('footTitle').textContent=title;$('footArtist').textContent=artist||'YouTube';$('nowPlaying').textContent=title+' — '+(artist||'Onbekende artiest')}
-   if(beforeId!==id&&current===editing&&$('videoBox').querySelector('iframe')){current=null;play(editing)}
+   var beforeId=original.youtubeId;
+   original.youtubeId=id;original.title=title;original.artist=artist;original.folders=selected;original.updatedAt=Date.now();
+   if(current&&current.youtubeId===beforeId){current=original;$('footTitle').textContent=title;$('footArtist').textContent=artist||'YouTube';$('nowPlaying').textContent=title+' — '+(artist||'Onbekende artiest')}
+   if(beforeId!==id&&current===original&&$('videoBox').querySelector('iframe')){current=null;play(original)}
   }else db.songs.push({id:String(Date.now()),youtubeId:id,title,artist,folders:selected,favorite:false,updatedAt:Date.now()});
   save();clearTest();$('songDialog').close();$('songForm').reset();editing=null;$('songError').textContent='';render();
   if($('discoverDialog').open){
