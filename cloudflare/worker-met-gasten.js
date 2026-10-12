@@ -68,15 +68,19 @@ async function mmGuestApi(request,env,url){
   if(path==='/api/music-admin/youtube-search'){
    if(request.method!=='GET')return json({error:'Methode niet toegestaan'},405);
    if(!await mmOwner(request,env))return json({error:'Alleen beheerder'},403);
-   const q=(new URL(request.url).searchParams.get('q')||'').trim();
+   const searchUrl=new URL(request.url);
+   const q=(searchUrl.searchParams.get('q')||'').trim();
+   const pageToken=(searchUrl.searchParams.get('pageToken')||'').trim();
+   if(pageToken&&!/^[A-Za-z0-9_-]{1,200}$/.test(pageToken))return json({error:'Ongeldige pagina'},400);
    if(q.length<2||q.length>120)return json({error:'Voer 2 tot 120 tekens in'},400);
    if(!env.YOUTUBE_API_KEY)return json({error:'YouTube-zoekfunctie is nog niet geconfigureerd'},503);
    try{
-    const params=new URLSearchParams({part:'snippet',type:'video',maxResults:'12',videoEmbeddable:'true',q,key:env.YOUTUBE_API_KEY});
+    const params=new URLSearchParams({part:'snippet',type:'video',maxResults:'24',videoEmbeddable:'true',q,key:env.YOUTUBE_API_KEY});
+    if(pageToken)params.set('pageToken',pageToken);
     const upstream=await fetch('https://www.googleapis.com/youtube/v3/search?'+params,{headers:{accept:'application/json'}});
     const data=await upstream.json();
     if(!upstream.ok)return json({error:upstream.status===403?'YouTube API heeft geen toegang of het zoekquotum is bereikt.':'YouTube zoeken is tijdelijk niet beschikbaar.'},502);
-    return json({items:(Array.isArray(data.items)?data.items:[]).filter(x=>/^[a-zA-Z0-9_-]{11}$/.test(x?.id?.videoId||'')).map(x=>({youtubeId:x.id.videoId,title:String(x.snippet?.title||'').slice(0,180),channel:String(x.snippet?.channelTitle||'').slice(0,180),thumbnail:'https://i.ytimg.com/vi/'+x.id.videoId+'/mqdefault.jpg'}))});
+    return json({items:(Array.isArray(data.items)?data.items:[]).filter(x=>/^[a-zA-Z0-9_-]{11}$/.test(x?.id?.videoId||'')).map(x=>({youtubeId:x.id.videoId,title:String(x.snippet?.title||'').slice(0,180),channel:String(x.snippet?.channelTitle||'').slice(0,180),thumbnail:'https://i.ytimg.com/vi/'+x.id.videoId+'/mqdefault.jpg'})),nextPageToken:typeof data.nextPageToken==='string'?data.nextPageToken:''});
    }catch{return json({error:'Zoeken is tijdelijk niet beschikbaar'},502)}
   }
   if(path==='/api/music-admin/guests'&&method==='GET'){
