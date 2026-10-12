@@ -65,6 +65,20 @@ async function mmGuestApi(request,env,url){
  if(method!=='GET'&&!mmMutate(request))return mmBad('Ongeldige herkomst',403);
  if(path.startsWith('/api/music-admin/')){
   if(!await mmOwner(request,env))return mmBad('Alleen beheerder',403);
+  if(path==='/api/music-admin/youtube-search'){
+   if(request.method!=='GET')return json({error:'Methode niet toegestaan'},405);
+   if(!await mmOwner(request,env))return json({error:'Alleen beheerder'},403);
+   const q=(new URL(request.url).searchParams.get('q')||'').trim();
+   if(q.length<2||q.length>120)return json({error:'Voer 2 tot 120 tekens in'},400);
+   if(!env.YOUTUBE_API_KEY)return json({error:'YouTube-zoekfunctie is nog niet geconfigureerd'},503);
+   try{
+    const params=new URLSearchParams({part:'snippet',type:'video',maxResults:'12',videoEmbeddable:'true',q,key:env.YOUTUBE_API_KEY});
+    const upstream=await fetch('https://www.googleapis.com/youtube/v3/search?'+params,{headers:{accept:'application/json'}});
+    const data=await upstream.json();
+    if(!upstream.ok)return json({error:upstream.status===403?'YouTube API heeft geen toegang of het zoekquotum is bereikt.':'YouTube zoeken is tijdelijk niet beschikbaar.'},502);
+    return json({items:(Array.isArray(data.items)?data.items:[]).filter(x=>/^[a-zA-Z0-9_-]{11}$/.test(x?.id?.videoId||'')).map(x=>({youtubeId:x.id.videoId,title:String(x.snippet?.title||'').slice(0,180),channel:String(x.snippet?.channelTitle||'').slice(0,180),thumbnail:'https://i.ytimg.com/vi/'+x.id.videoId+'/mqdefault.jpg'}))});
+   }catch{return json({error:'Zoeken is tijdelijk niet beschikbaar'},502)}
+  }
   if(path==='/api/music-admin/guests'&&method==='GET'){
    const {results}=await env.DB.prepare('SELECT id,email,status,created_at,revoked_at FROM music_guests ORDER BY created_at DESC').all();return json({guests:results});
   }
@@ -197,20 +211,6 @@ async function mmGuestApi(request,env,url){
 export default {
  async fetch(request,env){
   const url=new URL(request.url);
-  if(url.pathname==='/api/music-admin/youtube-search'){
-   if(request.method!=='GET')return json({error:'Methode niet toegestaan'},405);
-   if(!await mmOwner(request,env))return json({error:'Alleen beheerder'},403);
-   const q=(url.searchParams.get('q')||'').trim();
-   if(q.length<2||q.length>120)return json({error:'Voer 2 tot 120 tekens in'},400);
-   if(!env.YOUTUBE_API_KEY)return json({error:'YouTube-zoekfunctie is nog niet geconfigureerd'},503);
-   try{
-    const params=new URLSearchParams({part:'snippet',type:'video',maxResults:'12',videoEmbeddable:'true',q,key:env.YOUTUBE_API_KEY});
-    const upstream=await fetch('https://www.googleapis.com/youtube/v3/search?'+params,{headers:{accept:'application/json'}});
-    const data=await upstream.json();
-    if(!upstream.ok)return json({error:upstream.status===403?'YouTube API heeft geen toegang of het zoekquotum is bereikt.':'YouTube zoeken is tijdelijk niet beschikbaar.'},502);
-    return json({items:(Array.isArray(data.items)?data.items:[]).filter(x=>/^[a-zA-Z0-9_-]{11}$/.test(x?.id?.videoId||'')).map(x=>({youtubeId:x.id.videoId,title:String(x.snippet?.title||'').slice(0,180),channel:String(x.snippet?.channelTitle||'').slice(0,180),thumbnail:'https://i.ytimg.com/vi/'+x.id.videoId+'/mqdefault.jpg'}))});
-   }catch{return json({error:'Zoeken is tijdelijk niet beschikbaar'},502)}
-  }
   if(url.pathname==='/gast'||url.pathname.startsWith('/api/guest/')||url.pathname.startsWith('/api/music-admin/')){
    try{const reply=await mmGuestApi(request,env,url);if(reply)return reply}catch(e){return json({error:'Serverfout bij gastfunctie'},500)}
   }
