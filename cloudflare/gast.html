@@ -1,18 +1,152 @@
 <!doctype html><html lang="nl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Mijn Muziek · Gast</title>
 <style>
-:root{font-family:Inter,system-ui,sans-serif;color:#f8edff;background:#160d23}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 90% 0,#4b2554,transparent 42%),#160d23;min-height:100vh}button,input,select{font:inherit}button{cursor:pointer}button:disabled{opacity:.5}header{padding:23px max(18px,calc((100vw - 1080px)/2));border-bottom:1px solid #ffffff22;display:flex;justify-content:space-between;gap:12px;align-items:center}header b{font-size:23px}header b span{color:#ff8ba8}.container{max-width:1120px;padding:24px 18px 90px;margin:auto}.card{background:#2a1a3b;border:1px solid #674578;border-radius:17px;padding:20px;margin-bottom:18px}.small{font-size:13px;color:#c7b3d2}.btn{background:linear-gradient(115deg,#fa9760,#ef3bac);border:0;border-radius:10px;padding:11px 16px;color:white;font-weight:700}.muted{background:#3b294d;border:1px solid #7a5b8a;color:#f5e6fa;border-radius:10px;padding:10px 13px}.fields{display:grid;gap:12px;max-width:400px}.fields input,.fields select,input[type=search]{background:#1c1029;border:1px solid #765287;color:white;padding:12px;border-radius:9px;width:100%}.hidden{display:none!important}.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:15px}.bar>*{min-width:0}.song{display:flex;gap:12px;align-items:center;border-bottom:1px solid #ffffff1a;padding:10px 0}.song img{width:62px;height:45px;object-fit:cover;border-radius:7px}.song .title{flex:1;text-align:left;background:transparent;color:white;border:0;min-width:0}.song small{display:block;color:#c4b3cd}.song button:not(.title){min-width:38px}#appLayout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.85fr);gap:18px}iframe{width:100%;aspect-ratio:16/9;border:0;border-radius:12px}.error{color:#ffafaa;min-height:22px}.ok{color:#a9ecb9}.playlist{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid #ffffff18}.playlist button:first-child{flex:1;text-align:left}h2{margin-top:0}#songs{max-height:660px;overflow:auto}@media(max-width:760px){#appLayout{grid-template-columns:1fr}header b{font-size:19px}}
+:root{font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#f8edff;background:#160d23;color-scheme:dark}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(circle at 90% 0,#4b2554,transparent 42%),#160d23;min-height:100vh}
+body.modal-open{overflow:hidden}
+button,input,select{font:inherit}
+button{cursor:pointer}
+button:disabled{cursor:not-allowed;opacity:.5}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #ff9ab3;outline-offset:2px}
+header{padding:18px max(20px,calc((100vw - 1320px)/2));border-bottom:1px solid #ffffff1c;display:flex;justify-content:space-between;gap:12px;align-items:center;background:#160d23a8}
+header b{font-size:22px;letter-spacing:-.03em}
+header b span{color:#ff8ba8}
+.container{max-width:1360px;padding:24px 22px 80px;margin:auto}
+.card{background:linear-gradient(145deg,#2b1b3d,#241630);border:1px solid #674578;border-radius:18px;padding:20px;margin:0;box-shadow:0 12px 30px #09051120}
+.small{font-size:13px;color:#c7b3d2}
+.btn{background:linear-gradient(115deg,#fa9760,#ef3bac);border:0;border-radius:11px;padding:11px 16px;color:white;font-weight:700;transition:filter .15s,transform .15s}
+.btn:hover:not(:disabled){filter:brightness(1.08);transform:translateY(-1px)}
+.muted{background:#3b294d;border:1px solid #7a5b8a;color:#f5e6fa;border-radius:11px;padding:10px 13px}
+.fields{display:grid;gap:12px;max-width:420px}
+.fields input,.fields select,input[type=search],.create-panel input{background:#1c1029;border:1px solid #765287;color:white;padding:12px 14px;border-radius:10px;width:100%}
+.hidden{display:none!important}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:16px}
+.bar>*{min-width:0}
+.toolbar{margin-bottom:18px}
+.toolbar input[type=search]{flex:1;min-width:200px}
+.toolbar select{width:auto;min-width:155px}
+.song{display:flex;gap:12px;align-items:center;border-bottom:1px solid #ffffff14;padding:11px 0;min-width:0}
+.song:last-child{border-bottom:0}
+.song img{width:68px;height:50px;object-fit:cover;border-radius:9px;background:#1c1029;flex:none}
+.song .title{flex:1;text-align:left;background:transparent;color:white;border:0;min-width:0;padding:8px 2px;font-weight:600;line-height:1.35}
+.song .title:hover{color:#ffb2c5}
+.song button:not(.title){min-width:40px;flex:none}
+.icon-button{width:40px;height:40px;display:inline-grid;place-items:center;border-radius:12px;background:#38254a;border:1px solid #745386;color:#f8edff;font-size:19px;transition:background .15s,border-color .15s,transform .15s}
+.icon-button:hover{background:#513366;border-color:#a475b7;transform:translateY(-1px)}
+.favorite-button.active{color:#ff9db8;background:#4c294a}
+.add-button{font-size:22px}
+.action-group{display:flex;gap:7px}
+#appLayout{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(300px,.85fr);align-items:start;gap:20px}
+.right-rail{display:grid;align-content:start;gap:18px;min-width:0}
+.section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.section-heading h2{margin:0}
+.collection-card{min-width:0}
+.player-stage{min-height:90px}
+iframe{display:block;width:100%;aspect-ratio:16/9;border:0;border-radius:12px;background:#160d23}
+.error{color:#ffafaa;min-height:22px}
+.ok{color:#a9ecb9}
+.playlist-list{display:grid;gap:8px}
+.playlist{display:flex;align-items:center;gap:8px;padding:9px;background:#ffffff06;border:1px solid #ffffff12;border-radius:13px}
+.playlist-open{flex:1;display:flex;align-items:center;justify-content:space-between;gap:12px;text-align:left;min-width:0;background:transparent;color:#f8edff;border:0;padding:7px}
+.playlist-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.playlist-count{color:#c7b3d2;font-size:12px;white-space:nowrap}
+.playlist-empty{padding:16px;border:1px dashed #765287;border-radius:12px;color:#c7b3d2;text-align:center}
+.playlist-row-actions{display:flex;gap:5px}
+.playlist-row-actions .icon-button{width:34px;height:34px;font-size:15px}
+.playlist-note{margin:14px 0 0;line-height:1.5}
+.create-panel{display:grid;gap:9px;padding:12px;margin:12px 0;background:#1c1029;border:1px solid #674578;border-radius:13px}
+.create-panel-actions{display:flex;justify-content:flex-end;gap:8px}
+.link-button{background:transparent;border:0;color:#f7b7d0;padding:9px 0;font-weight:650;text-align:left}
+.link-button:hover{text-decoration:underline;color:#ffd0df}
+#songs{max-height:min(76vh,900px);overflow:auto;padding-right:4px;scrollbar-color:#68447d transparent;scrollbar-width:thin}
+.modal-backdrop{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:#090511b8;backdrop-filter:blur(8px)}
+.modal-card{width:min(100%,520px);max-height:min(90vh,760px);overflow:auto;padding:22px;background:linear-gradient(145deg,#332044,#20132e);border:1px solid #8a60a0;border-radius:22px;box-shadow:0 28px 90px #0009}
+.modal-header{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;margin-bottom:18px}
+.modal-header h2{font-size:22px;margin:2px 0 0}
+.modal-close{width:36px;height:36px;font-size:22px}
+.song-preview{display:flex;align-items:center;gap:14px;padding:12px;background:#ffffff08;border:1px solid #ffffff12;border-radius:14px;margin-bottom:20px}
+.song-preview img{width:82px;height:62px;object-fit:cover;border-radius:10px;background:#1c1029;flex:none}
+.preview-title{font-weight:700;line-height:1.4;overflow-wrap:anywhere}
+.preview-artist{margin-top:4px}
+.modal-field{display:grid;gap:8px;font-size:14px;font-weight:650}
+.modal-field select{background:#1c1029;border:1px solid #765287;color:white;padding:12px 14px;border-radius:11px;width:100%}
+.modal-message{min-height:22px;margin:10px 0 0;font-size:13px;color:#c7b3d2}
+.modal-message.warning{color:#ffc58d}
+.modal-create-panel{margin-top:3px}
+.modal-footer{display:flex;justify-content:flex-end;gap:9px;margin-top:18px;padding-top:16px;border-top:1px solid #ffffff18}
+.modal-footer button{min-width:112px}
+.toast{position:fixed;z-index:1100;left:50%;bottom:24px;transform:translate(-50%,18px);opacity:0;pointer-events:none;padding:12px 18px;border-radius:13px;background:#2f754b;color:white;box-shadow:0 12px 34px #0006;font-weight:650;transition:opacity .2s,transform .2s;max-width:calc(100vw - 32px);text-align:center}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+@media(max-width:900px){#appLayout{grid-template-columns:minmax(0,1.15fr) minmax(270px,.85fr);gap:14px}.card{padding:17px}}
+.icon-button[data-tooltip]{position:relative}
+.icon-button[data-tooltip]::after{content:attr(data-tooltip);position:absolute;z-index:20;left:50%;bottom:calc(100% + 9px);transform:translate(-50%,4px);padding:6px 9px;border:1px solid #45366a;border-radius:8px;background:#171321;color:#f7f3ff;font:500 12px/1.2 system-ui,sans-serif;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s ease,transform .15s ease}
+.icon-button[data-tooltip]:hover::after,.icon-button[data-tooltip]:focus-visible::after{opacity:1;transform:translate(-50%,0)}
+@media(max-width:700px){
+ header{padding:14px 16px}header b{font-size:19px}.container{padding:16px 13px 72px}
+ #appLayout{grid-template-columns:1fr;gap:13px}.right-rail{gap:13px}
+ .toolbar{display:grid;grid-template-columns:1fr auto;gap:8px}.toolbar input[type=search]{grid-column:1/-1;min-width:0}
+ .toolbar select{min-width:0;width:100%}.toolbar #onlyFav{width:100%;padding:10px 9px}
+ .card{padding:15px;border-radius:15px}.song{gap:8px;padding:9px 0}.song img{width:56px;height:43px;border-radius:8px}
+ .song .title{font-size:14px}.song button:not(.title){min-width:36px}.icon-button{width:36px;height:36px;border-radius:10px;font-size:17px}
+ .action-group{gap:5px}#songs{max-height:66vh}.playlist{gap:5px;padding:7px}.playlist-row-actions .icon-button{width:32px;height:32px}
+ .modal-backdrop{place-items:end center;padding:10px}.modal-card{width:100%;max-height:88vh;border-radius:20px;padding:18px}
+ .modal-header h2{font-size:20px}.song-preview img{width:70px;height:54px}.modal-footer button{flex:1;min-width:0}
+ .toast{bottom:16px}
+}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
 </style></head><body>
 <header><b>♫ Mijn <span>Muziek</span> <small class="small">Gast</small></b><div><span id="who" class="small"></span> <button id="logout" class="muted hidden">Uitloggen</button></div></header>
 <main class="container">
 <section id="login" class="card"><h2>Welkom bij Mijn Muziek</h2><p>Je kunt hier luisteren naar de gedeelde muziekcollectie. Je eigen favorieten en afspeellijsten zijn privé.</p>
 <div class="fields"><label>E-mailadres<input id="email" type="email" autocomplete="email" placeholder="jij@voorbeeld.nl"></label><div id="codeArea"><label>Eenmalige code<input id="code" inputmode="numeric" maxlength="8" pattern="[0-9]{8}" autocomplete="one-time-code" placeholder="123456"></label><p class="small">De persoonlijke uitnodigingscode ontvang je van de beheerder. Deze is 24 uur geldig en eenmalig te gebruiken.</p><button id="verify" class="btn">Inloggen</button></div></div><p id="loginMsg" class="small" role="status"></p></section>
-<section id="app" class="hidden"><div class="bar"><input id="search" type="search" placeholder="Zoeken in muziek…" style="flex:1;min-width:180px"><select id="folder" aria-label="Map kiezen"><option value="">Alle mappen</option></select><button id="onlyFav" class="muted">♡ Mijn favorieten</button></div>
-<div id="appLayout"><div><div class="card"><div class="bar"><h2 style="margin:0">Muziekcollectie</h2><span class="small" id="total"></span></div><div id="songs"></div></div></div>
-<div><div class="card"><h2>Nu afspelen</h2><div id="player"><p class="small">Selecteer een nummer.</p></div><p id="playing" class="small"></p></div>
-<div class="card"><div class="bar"><h2 style="margin:0">Mijn afspeellijsten</h2><button id="create" class="btn">+ Nieuw</button></div><div id="lists"></div><p class="small">Alleen jij kunt je eigen favorieten en afspeellijsten zien.</p></div></div></div>
+<section id="app" class="hidden">
+<div class="bar toolbar">
+ <input id="search" type="search" placeholder="Zoeken in muziek…" aria-label="Zoeken in de muziekcollectie">
+ <select id="folder" aria-label="Map kiezen"><option value="">Alle mappen</option></select>
+ <button id="onlyFav" class="muted" type="button">♡ Mijn favorieten</button>
+</div>
+<div id="appLayout">
+ <section class="card collection-card" aria-labelledby="collectionHeading">
+  <div class="section-heading"><h2 id="collectionHeading">Muziekcollectie</h2><span class="small" id="total"></span></div>
+  <div id="songs"></div>
+ </section>
+ <aside class="right-rail">
+  <section class="card" aria-labelledby="playerHeading">
+   <div class="section-heading"><h2 id="playerHeading">Nu afspelen</h2></div>
+   <div id="player" class="player-stage"><p class="small">Selecteer een nummer.</p></div>
+   <p id="playing" class="small"></p>
+  </section>
+  <section class="card" aria-labelledby="listsHeading">
+   <div class="section-heading"><h2 id="listsHeading">Mijn afspeellijsten</h2><button id="create" class="btn" type="button">＋ Nieuw</button></div>
+   <div id="createListPanel" class="create-panel hidden">
+    <label class="small" for="createListName">Naam van de afspeellijst</label>
+    <input id="createListName" maxlength="80" placeholder="Bijvoorbeeld: Favoriete muziek">
+    <div class="create-panel-actions"><button id="cancelCreateList" class="muted" type="button">Annuleren</button><button id="saveCreateList" class="btn" type="button">Aanmaken</button></div>
+   </div>
+   <div id="lists" class="playlist-list"></div>
+   <p class="small playlist-note">Alleen jij kunt je eigen favorieten en afspeellijsten zien.</p>
+  </section>
+ </aside>
+</div>
+<div id="playlistModal" class="modal-backdrop hidden" aria-hidden="true">
+ <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-describedby="modalSongTitle">
+  <div class="modal-header"><h2 id="modalTitle">Toevoegen aan afspeellijst</h2><button id="closeModal" class="icon-button modal-close" type="button" aria-label="Sluiten" title="Sluiten">×</button></div>
+  <div class="song-preview"><img id="modalThumb" alt=""><div><div id="modalSongTitle" class="preview-title"></div><div id="modalSongArtist" class="small preview-artist"></div></div></div>
+  <label class="modal-field" for="playlistSelect">Kies afspeellijst<select id="playlistSelect"></select></label>
+  <p id="modalMessage" class="modal-message" role="status" aria-live="polite"></p>
+  <button id="newListLink" class="link-button" type="button">＋ Nieuwe afspeellijst maken</button>
+  <div id="modalCreatePanel" class="create-panel modal-create-panel hidden">
+   <label class="small" for="modalNewListName">Naam van de afspeellijst</label>
+   <input id="modalNewListName" maxlength="80" placeholder="Bijvoorbeeld: Favoriete muziek">
+   <div class="create-panel-actions"><button id="cancelModalCreate" class="muted" type="button">Annuleren</button><button id="saveModalCreate" class="btn" type="button">Aanmaken</button></div>
+  </div>
+  <div class="modal-footer"><button id="cancelAdd" class="muted" type="button">Annuleren</button><button id="confirmAdd" class="btn" type="button" disabled>Toevoegen</button></div>
+ </section>
+</div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
 </section><p id="appMsg" class="error" role="status"></p></main>
 <script>
-const $=id=>document.getElementById(id);let state=null,onlyFav=false,activeList=null;
+const $=id=>document.getElementById(id);let state=null,onlyFav=false,activeList=null,modalSong=null,modalReturnFocus=null,toastTimer=null;
 async function api(path,method='GET',body){const res=await fetch(path,{method,credentials:'same-origin',headers:body?{'content-type':'application/json'}:{},body:body?JSON.stringify(body):undefined,cache:'no-store'});let data=await res.json().catch(()=>({error:'Onbekende reactie'}));if(!res.ok)throw Error(data.error||'Aanvraag mislukt');return data}
 function el(tag,text,cls){const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n}
 function button(label,action,cls='muted'){const b=el('button',label,cls);b.onclick=action;return b}
@@ -21,14 +155,37 @@ function songById(id){return state.collection.songs.find(s=>s.youtubeId===id)}
 function play(song){const box=$('player');box.replaceChildren();const frame=el('iframe');frame.title='YouTube · '+song.title;frame.src='https://www.youtube-nocookie.com/embed/'+encodeURIComponent(song.youtubeId)+'?autoplay=1&rel=0&playsinline=1';frame.allow='autoplay;encrypted-media;picture-in-picture;fullscreen';frame.allowFullscreen=true;box.append(frame);$('playing').textContent=song.title+(song.artist?' — '+song.artist:'')}
 async function favorite(song){const next=!state.favorites.includes(song.youtubeId);try{await api('/api/guest/favorite','POST',{youtubeId:song.youtubeId,active:next});state.favorites=next?[...state.favorites,song.youtubeId]:state.favorites.filter(id=>id!==song.youtubeId);render()}catch(e){showError(e)}}
 function showError(e){$('appMsg').textContent=e.message||String(e)}
-function render(){if(!state)return;const q=$('search').value.trim().toLocaleLowerCase('nl'),folder=$('folder').value;const songs=state.collection.songs.filter(s=>(!folder||s.folders.includes(folder))&&(!onlyFav||state.favorites.includes(s.youtubeId))&&(!q||[s.title,s.artist,...s.folders].join(' ').toLocaleLowerCase('nl').includes(q)));$('total').textContent=songs.length+' nummers';$('onlyFav').textContent=onlyFav?'♥ Alle nummers':'♡ Mijn favorieten';const target=$('songs');target.replaceChildren();for(const song of songs){const row=el('div',undefined,'song');const img=el('img');img.src='https://i.ytimg.com/vi/'+song.youtubeId+'/mqdefault.jpg';img.alt='';const title=button(song.title+(song.artist?' — '+song.artist:''),()=>play(song),'title');const fav=button(state.favorites.includes(song.youtubeId)?'♥':'♡',()=>favorite(song));fav.title='Favoriet';const add=button('+',()=>addToPlaylist(song));add.title='Toevoegen aan mijn afspeellijst';row.append(img,title,fav,add);target.append(row)}if(!songs.length)target.append(el('p','Geen nummers gevonden.','small'));renderLists()}
-function renderLists(){const box=$('lists');box.replaceChildren();for(const list of state.playlists){const row=el('div',undefined,'playlist');const open=button('🎶 '+list.name+' ('+list.songIds.length+')',()=>{activeList=list.id;showList(list)});const rename=button('✎',()=>renameList(list));rename.title='Naam wijzigen';const del=button('×',()=>deleteList(list));del.title='Verwijderen';row.append(open,rename,del);box.append(row)}if(!state.playlists.length)box.append(el('p','Nog geen afspeellijsten.','small'))}
+function lastPlaylistKey(){return 'mijn-muziek-last-playlist:'+state.email}
+function rememberedPlaylist(){try{return localStorage.getItem(lastPlaylistKey())||''}catch{return ''}}
+function rememberPlaylist(id){try{localStorage.setItem(lastPlaylistKey(),id)}catch{}}
+function showToast(message){const toast=$('toast');toast.textContent=message;toast.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>toast.classList.remove('show'),3000)}
+function render(){if(!state)return;const q=$('search').value.trim().toLocaleLowerCase('nl'),folder=$('folder').value;const songs=state.collection.songs.filter(s=>(!folder||s.folders.includes(folder))&&(!onlyFav||state.favorites.includes(s.youtubeId))&&(!q||[s.title,s.artist,...s.folders].join(' ').toLocaleLowerCase('nl').includes(q)));$('total').textContent=songs.length+' nummers';$('onlyFav').textContent=onlyFav?'♥ Alle nummers':'♡ Mijn favorieten';const target=$('songs');target.replaceChildren();for(const song of songs){const row=el('div',undefined,'song');const img=el('img');img.src='https://i.ytimg.com/vi/'+song.youtubeId+'/mqdefault.jpg';img.alt='';img.loading='lazy';const title=button(song.title+(song.artist?' — '+song.artist:''),()=>play(song),'title');title.setAttribute('aria-label','Afspelen: '+song.title);const actions=el('div',undefined,'action-group');const isFavorite=state.favorites.includes(song.youtubeId);const fav=button(isFavorite?'♥':'♡',()=>favorite(song),'icon-button favorite-button'+(isFavorite?' active':''));fav.title=isFavorite?'Verwijderen uit favorieten':'Toevoegen aan favorieten';fav.setAttribute('aria-label',fav.title);fav.dataset.tooltip=fav.title;const add=button('+',()=>openPlaylistModal(song,add),'icon-button add-button');add.title='Toevoegen aan afspeellijst';add.setAttribute('aria-label',add.title);add.dataset.tooltip=add.title;actions.append(fav,add);row.append(img,title,actions);target.append(row)}if(!songs.length)target.append(el('p','Geen nummers gevonden.','small'));renderLists()}
+function renderLists(){const box=$('lists');box.replaceChildren();for(const list of state.playlists){const row=el('div',undefined,'playlist');const open=button('',()=>{activeList=list.id;showList(list)},'playlist-open');const name=el('span',list.name,'playlist-name');const count=el('span',list.songIds.length+' '+(list.songIds.length===1?'nummer':'nummers'),'playlist-count');open.append(name,count);const actions=el('div',undefined,'playlist-row-actions');const rename=button('✎',()=>renameList(list),'icon-button');rename.title='Naam wijzigen';rename.setAttribute('aria-label','Naam wijzigen: '+list.name);const del=button('×',()=>deleteList(list),'icon-button');del.title='Afspeellijst verwijderen';del.setAttribute('aria-label','Afspeellijst verwijderen: '+list.name);actions.append(rename,del);row.append(open,actions);box.append(row)}if(!state.playlists.length)box.append(el('div','Maak je eerste persoonlijke afspeellijst.','playlist-empty'))}
+function openPlaylistModal(song,trigger){modalSong=song;modalReturnFocus=trigger||document.activeElement;$('modalThumb').src='https://i.ytimg.com/vi/'+song.youtubeId+'/mqdefault.jpg';$('modalThumb').alt='';$('modalSongTitle').textContent=song.title;$('modalSongArtist').textContent=song.artist||'';const select=$('playlistSelect');select.replaceChildren(new Option('Kies afspeellijst',''));for(const list of state.playlists)select.add(new Option(list.name+' ('+list.songIds.length+')',list.id));const last=rememberedPlaylist();if(state.playlists.length===1)select.value=state.playlists[0].id;else if(state.playlists.some(p=>p.id===last))select.value=last;else select.value='';$('modalCreatePanel').classList.add('hidden');$('modalNewListName').value='';$('modalMessage').textContent=state.playlists.length?'':'Maak eerst een afspeellijst aan.';$('playlistModal').classList.remove('hidden');$('playlistModal').setAttribute('aria-hidden','false');document.body.classList.add('modal-open');checkModalSelection();requestAnimationFrame(()=>{if(state.playlists.length>1)select.focus();else $('newListLink').focus()})}
+function closePlaylistModal(){if($('playlistModal').classList.contains('hidden'))return;$('playlistModal').classList.add('hidden');$('playlistModal').setAttribute('aria-hidden','true');document.body.classList.remove('modal-open');modalSong=null;if(modalReturnFocus&&typeof modalReturnFocus.focus==='function')modalReturnFocus.focus();modalReturnFocus=null}
+function checkModalSelection(){if(!modalSong)return;const list=state.playlists.find(p=>p.id===$('playlistSelect').value);const duplicate=!!(list&&list.songIds.includes(modalSong.youtubeId));const message=duplicate?'Dit nummer staat al in deze afspeellijst.':(!list?'Kies een afspeellijst om verder te gaan.':'');$('modalMessage').textContent=message;$('modalMessage').className='modal-message'+(duplicate?' warning':'');$('confirmAdd').disabled=!list||duplicate}
+async function createPlaylist(name){const result=await api('/api/guest/playlists','POST',{name});const list={id:result.id,name,songIds:[]};state.playlists.unshift(list);renderLists();return list}
+async function savePlaylistFrom(input,modal){const name=input.value.trim();const message=modal?$('modalMessage'):$('appMsg');if(!name){message.textContent='Vul een naam in voor de afspeellijst.';input.focus();return}try{const list=await createPlaylist(name);input.value='';if(modal){const select=$('playlistSelect');select.add(new Option(list.name+' (0)',list.id));select.value=list.id;$('modalCreatePanel').classList.add('hidden');rememberPlaylist(list.id);checkModalSelection();select.focus();showToast('Afspeellijst '+list.name+' aangemaakt.')}else{$('createListPanel').classList.add('hidden');showToast('Afspeellijst '+list.name+' aangemaakt.')}}catch(e){message.textContent=e.message||'De afspeellijst kon niet worden aangemaakt.'}}
 function showList(list){const songs=list.songIds.map(songById).filter(Boolean);const box=$('songs');box.replaceChildren();const back=button('← Terug naar collectie',()=>{activeList=null;render()});box.append(back);box.append(el('h3',list.name));for(const song of songs){const row=el('div',undefined,'song');row.append(button('▶ '+song.title,()=>play(song),'title'));row.append(button('×',async()=>{await updateList(list,list.name,list.songIds.filter(id=>id!==song.youtubeId));showList(list)}));box.append(row)}if(!songs.length)box.append(el('p','Nog geen nummers.','small'))}
-async function updateList(list,name,ids){try{await api('/api/guest/playlist','PUT',{id:list.id,name,songIds:ids});list.name=name;list.songIds=[...new Set(ids)].filter(id=>songById(id));renderLists()}catch(e){showError(e)}}
-async function addToPlaylist(song){if(!state.playlists.length){alert('Maak eerst een eigen afspeellijst.');return}const label=state.playlists.map((p,i)=>(i+1)+'. '+p.name).join('\n');const v=prompt('Kies een afspeellijst (nummer):\n'+label);if(v===null)return;const list=state.playlists[Number(v)-1];if(!list)return alert('Geen geldige afspeellijst');if(list.songIds.includes(song.youtubeId))return alert('Staat al in deze afspeellijst');await updateList(list,list.name,[...list.songIds,song.youtubeId])}
+async function updateList(list,name,ids){try{await api('/api/guest/playlist','PUT',{id:list.id,name,songIds:ids});list.name=name;list.songIds=[...new Set(ids)].filter(id=>songById(id));renderLists();return true}catch(e){showError(e);return false}}
+async function addToPlaylist(song,trigger){openPlaylistModal(song,trigger)}
+async function confirmPlaylistAdd(){if(!modalSong)return;const list=state.playlists.find(p=>p.id===$('playlistSelect').value);if(!list){checkModalSelection();return}if(list.songIds.includes(modalSong.youtubeId)){checkModalSelection();return}const add=$('confirmAdd'),original=add.textContent;add.disabled=true;add.textContent='Toevoegen…';const ok=await updateList(list,list.name,[...list.songIds,modalSong.youtubeId]);add.textContent=original;if(!ok){checkModalSelection();return}rememberPlaylist(list.id);const name=list.name;closePlaylistModal();showToast('Toegevoegd aan afspeellijst '+name)}
 async function renameList(list){const name=prompt('Nieuwe naam',list.name)?.trim();if(name&&name!==list.name)await updateList(list,name,list.songIds)}
 async function deleteList(list){if(!confirm('Afspeellijst verwijderen: '+list.name+'?'))return;try{await api('/api/guest/playlist','DELETE',{id:list.id});state.playlists=state.playlists.filter(x=>x.id!==list.id);render()}catch(e){showError(e)}}
-$('create').onclick=async()=>{const name=prompt('Naam van je afspeellijst')?.trim();if(!name)return;try{const result=await api('/api/guest/playlists','POST',{name});state.playlists.unshift({id:result.id,name,songIds:[]});renderLists()}catch(e){showError(e)}};
+$('create').onclick=()=>{$('createListPanel').classList.toggle('hidden');$('appMsg').textContent='';if(!$('createListPanel').classList.contains('hidden'))$('createListName').focus()};
+$('cancelCreateList').onclick=()=>{$('createListPanel').classList.add('hidden');$('createListName').value='';$('appMsg').textContent=''};
+$('saveCreateList').onclick=()=>savePlaylistFrom($('createListName'),false);
+$('createListName').addEventListener('keydown',e=>{if(e.key==='Enter')savePlaylistFrom($('createListName'),false)});
+$('newListLink').onclick=()=>{$('modalCreatePanel').classList.toggle('hidden');if(!$('modalCreatePanel').classList.contains('hidden'))$('modalNewListName').focus()};
+$('cancelModalCreate').onclick=()=>{$('modalCreatePanel').classList.add('hidden');$('modalNewListName').value='';$('modalMessage').textContent=''};
+$('saveModalCreate').onclick=()=>savePlaylistFrom($('modalNewListName'),true);
+$('modalNewListName').addEventListener('keydown',e=>{if(e.key==='Enter')savePlaylistFrom($('modalNewListName'),true)});
+$('playlistSelect').onchange=()=>{if($('playlistSelect').value)rememberPlaylist($('playlistSelect').value);checkModalSelection()};
+$('confirmAdd').onclick=confirmPlaylistAdd;
+$('cancelAdd').onclick=closePlaylistModal;
+$('closeModal').onclick=closePlaylistModal;
+$('playlistModal').onclick=e=>{if(e.target===$('playlistModal'))closePlaylistModal()};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closePlaylistModal()});
 $('verify').onclick=async()=>{try{await api('/api/guest/verify','POST',{email:$('email').value.trim(),code:$('code').value.trim()});$('loginMsg').textContent='';await load()}catch(e){$('loginMsg').textContent=e.message}};
 $('logout').onclick=async()=>{await api('/api/guest/logout','POST',{}).catch(()=>{});state=null;location.reload()};
 $('folder').onchange=()=>{activeList=null;render()};$('search').oninput=()=>{activeList=null;render()};$('onlyFav').onclick=()=>{onlyFav=!onlyFav;activeList=null;render()};load();
