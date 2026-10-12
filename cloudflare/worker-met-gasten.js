@@ -72,7 +72,7 @@ async function mmGuestApi(request,env,url){
    const body=await mmBody(request),email=mmEmail(body?.email);if(!email)return mmBad('Ongeldig e-mailadres');
    const existing=await env.DB.prepare('SELECT id,status FROM music_guests WHERE email=?').bind(email).first();
    const guestId=existing?.id||mmId(),now=mmNow();
-   if(existing){if(existing.status==='revoked')return mmBad('Deze gast is geblokkeerd; heractiveren is niet toegestaan',403)}
+   if(existing&&existing.status==='revoked'){if(body?.reactivate!==true)return mmBad('Dit account is ingetrokken. Gebruik Opnieuw activeren.',403);await env.DB.prepare("UPDATE music_guests SET status='invited',revoked_at=NULL,password_hash=NULL,failed_logins=0,locked_until=NULL WHERE id=? AND status='revoked'").bind(guestId).run();await env.DB.prepare('UPDATE music_guest_sessions SET revoked_at=? WHERE guest_id=? AND revoked_at IS NULL').bind(now,guestId).run()}
    else await env.DB.prepare("INSERT INTO music_guests(id,email,status,created_at) VALUES(?,?,'invited',?)").bind(guestId,email,now).run();
    const digits=new Uint32Array(1);crypto.getRandomValues(digits);
    const code=String(digits[0]%100000000).padStart(8,'0');
