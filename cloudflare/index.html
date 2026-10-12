@@ -12,7 +12,7 @@
 <dialog id="songDialog"><form method="dialog" id="songForm" class="form"><h2 class="h2" id="songDialogHeading">YouTube-nummer toevoegen</h2><label>YouTube-link<input required id="songUrl" class="field" placeholder="https://www.youtube.com/watch?v=..."></label><div id="linkCheck" class="help" role="status" aria-live="polite">Plak een link om deze te controleren.</div><label>Titel<input id="songTitle" class="field" placeholder="Optioneel"></label><label>Artiest (optioneel)<select id="songArtist" class="field"></select></label><label>Muziekmap (optioneel)<select id="songFolders" class="field"></select></label><div id="selectedFolders" class="help"></div><p class="help">Je mag artiest en map overslaan. Meerdere mappen toevoegen kan ook.</p><div class="help" style="background:#3a273e;border:1px solid #765478;padding:12px;border-radius:10px">ℹ️ Reclames en toestemming voor insluiten zijn met alleen een link niet betrouwbaar vast te stellen. Je kunt meteen opslaan of de video vrijblijvend testen.</div><button type="button" class="ghost" id="testSong" style="width:100%">▶ Video eerst testen</button><div id="testArea" class="hidden"><div id="testPreview"></div><p id="testStatus" class="help" role="status">Controleer zelf of de video afspeelt en of je reclame ziet. Ook na een geslaagde test kunnen later advertenties verschijnen.</p></div><div class="row"><button type="button" class="ghost" id="cancelSong">Annuleren</button><button class="btn" type="submit" id="saveSongButton">Toevoegen</button></div><p id="songError" class="small"></p></form></dialog>
 <dialog id="discoverDialog" class="discover-dialog" aria-labelledby="discoverHeading"><div class="form"><h2 class="h2" id="discoverHeading">🔎 Ontdek muziek op YouTube</h2><p class="help">Zoek muziek en voeg gevonden nummers toe aan jouw bibliotheek.</p>
 <form id="discoverSearchForm" class="row"><input id="discoverQuery" class="field" placeholder="Artiest, titel of muziekstijl" maxlength="120" required minlength="2" style="flex:1;min-width:0"><button class="btn" type="submit">Zoeken</button></form>
-<p id="discoverStatus" class="help" role="status"></p><div id="discoverResults" class="discover-results"></div><button id="discoverClose" class="ghost" type="button">Sluiten</button></div></dialog>
+<p id="discoverStatus" class="help" role="status"></p><div id="discoverResults" class="discover-results"></div><button id="discoverMore" class="ghost hidden" type="button" style="width:100%;margin-top:12px">Meer resultaten laden ↓</button><button id="discoverClose" class="ghost" type="button">Sluiten</button></div></dialog>
 <dialog id="folderManageDialog" aria-labelledby="folderManageHeading"><div class="form">
 <h2 class="h2" id="folderManageHeading">Map beheren</h2>
 <p id="folderManageName" class="help"></p>
@@ -59,14 +59,21 @@ var destinationSong=null;
 function destinationOptions(){var type=$('destinationType').value,sel=$('destinationSelect');sel.replaceChildren();var items=type==='folder'?db.folders.slice().sort((a,b)=>a.localeCompare(b,'nl')):db.playlists.filter(p=>!p.deletedAt);sel.append(new Option(items.length?'Kies een bestemming':'Nog geen bestemmingen',''));items.forEach(function(item){sel.append(new Option(type==='folder'?(submapParent(item)?'　↳ 📂 '+submapLeaf(item)+'  ('+submapParent(item)+')':'📁 '+item):'🎶 '+item.name,type==='folder'?item:item.id))});if(items.length===1)sel.value=type==='folder'?items[0]:items[0].id;$('destinationNew').textContent=type==='folder'?'＋ Nieuwe hoofdmap':'＋ Nieuwe afspeellijst';$('destinationMessage').textContent='';$('destinationSave').disabled=!items.length}
 $('youtubeDiscover').onclick=function(){closeMenu();$('discoverDialog').showModal();$('discoverQuery').focus()};
 $('discoverClose').onclick=function(){$('discoverDialog').close()};
-$('discoverSearchForm').onsubmit=async function(e){
- e.preventDefault();var q=$('discoverQuery').value.trim();if(q.length<2)return;
- var results=$('discoverResults'),status=$('discoverStatus');results.replaceChildren();status.textContent='YouTube doorzoeken…';
+var discoverPage='',discoverTerm='',discoverBusy=false,discoverSeen=new Set(),discoverCount=0,discoverRequest=0;
+async function loadDiscover(more){
+ if(discoverBusy)return;
+ var q=$('discoverQuery').value.trim();if(q.length<2)return;
+ if(!more){discoverTerm=q;discoverPage='';discoverSeen.clear();discoverCount=0;$('discoverResults').replaceChildren();discoverRequest++}
+ if(more&&(!discoverPage||q!==discoverTerm))return;
+ var requestNo=discoverRequest;discoverBusy=true;
+ var status=$('discoverStatus'),moreBtn=$('discoverMore');moreBtn.classList.add('hidden');status.textContent=more?'Meer resultaten ophalen…':'YouTube doorzoeken…';
  try{
-  var response=await fetch('/api/music-admin/youtube-search?q='+encodeURIComponent(q),{credentials:'same-origin'});
-  var data=await response.json();if(!response.ok)throw Error(data.error||'Zoeken is niet beschikbaar');
-  status.textContent=data.items.length?data.items.length+' resultaten':'Geen resultaten gevonden.';
-  data.items.forEach(function(item){
+  var url='/api/music-admin/youtube-search?q='+encodeURIComponent(discoverTerm)+(more?'&pageToken='+encodeURIComponent(discoverPage):'');
+  var response=await fetch(url,{credentials:'same-origin'});var data=await response.json();
+  if(!response.ok)throw Error(data.error||'Zoeken is niet beschikbaar');
+  if(requestNo!==discoverRequest)return;
+  (data.items||[]).forEach(function(item){
+   if(discoverSeen.has(item.youtubeId))return;discoverSeen.add(item.youtubeId);discoverCount++;
    var row=elem('div',undefined,'discover-result'),img=elem('img');img.src=item.thumbnail;img.alt='';
    var info=elem('div',undefined,'discover-result-info');info.append(elem('strong',item.title),elem('small',item.channel));
    var existing=db.songs.find(x=>x.youtubeId===item.youtubeId);var button=elem('button',existing?'＋ Koppelen':'＋ Toevoegen','ghost');
@@ -74,13 +81,17 @@ $('discoverSearchForm').onsubmit=async function(e){
     $('discoverDialog').close();
     if(existing){addSongToPlaylist(existing);return}
     $('addSong').click();$('songUrl').value='https://www.youtube.com/watch?v='+item.youtubeId;
-    $('songTitle').value=item.title;$('songArtist').value=db.artists.includes(item.channel)?item.channel:'';
-    checkLink()
-   };
-   row.append(img,info,button);results.append(row)
-  })
- }catch(error){status.textContent=error.message||'Zoeken niet beschikbaar'}
-};
+    $('songTitle').value=item.title;$('songArtist').value=db.artists.includes(item.channel)?item.channel:'';checkLink()
+   };row.append(img,info,button);$('discoverResults').append(row)
+  });
+  discoverPage=typeof data.nextPageToken==='string'?data.nextPageToken:'';
+  status.textContent=discoverCount?discoverCount+' resultaten geladen'+(discoverPage?' · er zijn meer resultaten':''):'Geen resultaten gevonden.';
+  moreBtn.classList.toggle('hidden',!discoverPage);
+ }catch(error){if(requestNo===discoverRequest){status.textContent=error.message||'Zoeken niet beschikbaar';moreBtn.classList.toggle('hidden',!more||!discoverPage)}}
+ finally{discoverBusy=false}
+}
+$('discoverSearchForm').onsubmit=function(e){e.preventDefault();loadDiscover(false)};
+$('discoverMore').onclick=function(){loadDiscover(true)};
 function addSongToPlaylist(song){destinationSong=song;$('destinationTrack').textContent=song.title;$('destinationType').value='folder';destinationOptions();$('destinationDialog').showModal()}
 $('destinationType').onchange=destinationOptions;
 $('destinationSelect').onchange=function(){$('destinationMessage').textContent=''};
