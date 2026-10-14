@@ -493,29 +493,6 @@ function activeArtistNames(){
 function findArtist(source){if(!source)return '';var key=artistKey(source),alias=db.artistAliases&&db.artistAliases[key];if(alias&&db.artists.includes(alias.name))return alias.name;var exact=db.artists.find(a=>artistKey(a)===key);if(exact)return exact;var cleaned=artistKey(cleanArtistSource(source));return db.artists.find(a=>artistKey(a)===cleaned)||''}
 function rememberArtistAlias(source,artist){if(!source||!artist)return;db.artistAliases=db.artistAliases||{};db.artistAliases[artistKey(source)]={name:artist,updatedAt:Date.now()}}
 var importArtistSource='';
-function chooseImportArtist(source){
- source=String(source||'').trim();if(!source)return '';
- var found=findArtist(source);if(found)return found;
- var suggested=cleanArtistSource(source);
- var answer=prompt('Artiest uit YouTube: '+source+'\n\nDeze artiest is nog niet herkend.\n1 = Nieuwe artiest toevoegen ('+suggested+')\n2 = Aan bestaande artiest koppelen\n3 = Zonder artiest bewaren','1');
- if(answer===null||answer.trim()==='3')return '';
- if(answer.trim()==='2'){
-  var list=db.artists.slice().sort((a,b)=>a.localeCompare(b,'nl'));
-  if(!list.length){mmAlert('Er zijn nog geen artiesten om aan te koppelen.');return ''}
-  var chosen=prompt('Typ de naam van een bestaande artiest:\n'+list.join(' · '),'');
-  if(!chosen)return '';
-  var target=db.artists.find(a=>artistKey(a)===artistKey(chosen));if(!target){mmAlert('Deze artiest staat niet op de artiestenlijst.');return ''}
-  rememberArtistAlias(source,target);return target
- }
- if(answer.trim()==='1'){
-  var name=prompt('Naam van de nieuwe artiest',suggested);
-  if(!name||!name.trim())return '';
-  name=name.trim();var existing=db.artists.find(a=>artistKey(a)===artistKey(name));
-  if(existing)name=existing;else db.artists.push(name);
-  rememberArtistAlias(source,name);return name
- }
- return ''
-}
 var importArtistHandled=false;
 function hideImportArtistChoice(){$('importArtistChoice').classList.add('hidden')}
 function applyImportedArtist(source){
