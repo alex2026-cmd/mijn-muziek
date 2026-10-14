@@ -564,9 +564,10 @@ function cleanImportedTitle(title,channel){
  var original=String(title||'').trim(),t=original;
  var candidates=[findArtist(channel),cleanArtistSource(channel),channel].filter(Boolean);
  for(var name of candidates){
-  var escaped=name.replace(/[.*+?^$()|[\]\\{}]/g,'\\function cleanArtistSource(value)');
-  var prefix=new RegExp('^'+escaped+'\\s*[-–—:|]\\s*','i');
-  if(prefix.test(t)){t=t.replace(prefix,'').trim();break}
+  if(t.toLocaleLowerCase('nl').startsWith(name.toLocaleLowerCase('nl'))){
+   var remainder=t.slice(name.length);
+   if(/^\s*[-–—:|]\s*/.test(remainder)){t=remainder.replace(/^\s*[-–—:|]\s*/,'').trim();break}
+  }
  }
  t=t.replace(/\s*[\[(]\s*(?:official\s+(?:music\s+)?video|official\s+audio|lyrics?\s+video|lyric\s+video|audio\s+only|visualizer|hd|4k)\s*[\])]\s*$/i,'').trim();
  return t||original
