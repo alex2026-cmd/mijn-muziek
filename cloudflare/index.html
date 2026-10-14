@@ -380,7 +380,7 @@ function openArtistMerge(base){
  artistMergeBase=base;var other=$('artistMergeOther');other.replaceChildren();
  db.artists.filter(a=>a!==base).sort((a,b)=>a.localeCompare(b,'nl')).forEach(a=>other.add(new Option(a,a)));
  if(!other.options.length){alert('Er is nog geen tweede artiest om mee samen te voegen.');return}
- other.selectedIndex=0;renderArtistMergeChoices();$('artistMergeDialog').showModal()
+ other.selectedIndex=0;$('artistMergeDialog').dataset.keep=base;renderArtistMergeChoices();$('artistMergeDialog').showModal()
 }
 function renderArtistMergeChoices(){
  var other=$('artistMergeOther').value,base=artistMergeBase,holder=$('artistMergeChoices');holder.replaceChildren();
