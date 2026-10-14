@@ -111,8 +111,8 @@ dialog::backdrop{background:#080310bb}label{font-size:13px;color:#c8b9d1}.help{l
 <script>
 (function(){
 'use strict';
-function mmPrompt(message,initial=''){return new Promise(resolve=>{var d=$('mmPrompt');$('mmPromptHeading').textContent='Gegevens invoeren';$('mmPromptText').textContent=String(message);var field=$('mmPromptValue');field.value=String(initial??'');d.onclose=()=>resolve(d.returnValue==='ok'?field.value:null);d.showModal();field.focus();field.select()})}
-function mmConfirm(message){return new Promise(resolve=>{var d=$('mmConfirm');$('mmConfirmHeading').textContent=/verwijder|legen|intrekken|vervangen/i.test(message)?'Weet je het zeker?':'Bevestigen';$('mmConfirmText').textContent=String(message);d.onclose=()=>resolve(d.returnValue==='ok');d.showModal()})}
+function mmPrompt(message,initial=''){return new Promise(resolve=>{var d=$('mmPrompt');$('mmPromptHeading').textContent='Gegevens invoeren';$('mmPromptText').textContent=String(message);var field=$('mmPromptValue');field.value=String(initial??'');d.returnValue='cancel';d.onclose=()=>resolve(d.returnValue==='ok'?field.value:null);d.showModal();field.focus();field.select()})}
+function mmConfirm(message){return new Promise(resolve=>{var d=$('mmConfirm');$('mmConfirmHeading').textContent=/verwijder|legen|intrekken|vervangen/i.test(message)?'Weet je het zeker?':'Bevestigen';$('mmConfirmText').textContent=String(message);d.returnValue='cancel';d.onclose=()=>resolve(d.returnValue==='ok');d.showModal()})}
 function mmAlert(message){var d=$('mmInfo');$('mmInfoText').textContent=String(message);if(!d.open)d.showModal()}
 var KEY='mijn-muziek-app-v1';
 var starter={deletedVideos:{},folders:['Nederlandse muziek','Duitse muziek','Griekse muziek','Relax'],artists:[],songs:[{id:'first-song',youtubeId:'ZZGOIBZpC_k',title:'Mijn eerste YouTube-nummer',artist:'',folders:['Griekse muziek'],favorite:false}]};
