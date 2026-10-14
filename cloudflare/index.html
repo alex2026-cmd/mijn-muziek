@@ -242,6 +242,41 @@ $('discoverSelectClear').onclick=function(){
  $('discoverResults').querySelectorAll('.discover-checkbox').forEach(x=>x.checked=false);
  refreshDiscoverBulkSelection()
 };
+
+function fillDiscoverBulkOptions(){
+ var a=$('discoverBulkArtist'),f=$('discoverBulkFolder');a.replaceChildren();f.replaceChildren();
+ a.add(new Option('Automatisch per video','__auto__'));activeArtistNames().forEach(name=>a.add(new Option(name,name)));a.add(new Option('Nieuwe artiest maken','__new__'));
+ f.add(new Option('Geen map',''));sortFolderNames(db.folders.slice()).forEach(name=>f.add(new Option(name,name)));f.add(new Option('Nieuwe map maken','__new__'))
+}
+$('discoverBulkOpen').onclick=function(){fillDiscoverBulkOptions();$('discoverBulkDescription').textContent=discoverBulkSelected.size+' geselecteerd. Kies een artiest en map.';$('discoverBulkDialog').showModal()};
+$('discoverBulkCancel').onclick=function(){$('discoverBulkDialog').close()};
+$('discoverBulkArtist').onchange=async function(){
+ if(this.value!=='__new__')return;
+ var name=await mmPrompt('Nieuwe artiest');if(!name||!name.trim()){this.value='__auto__';return}
+ name=name.trim();var exists=activeArtistNames().find(a=>artistKey(a)===artistKey(name));name=exists||name;
+ if(!exists){db.artists.push(name);save()}fillDiscoverBulkOptions();$('discoverBulkArtist').value=name
+};
+$('discoverBulkFolder').onchange=async function(){
+ if(this.value!=='__new__')return;
+ var name=await mmPrompt('Nieuwe hoofdmap');if(!name||!name.trim()){this.value='';return}
+ name=name.trim();if(name.includes('/')||db.folders.some(f=>f.toLowerCase()===name.toLowerCase())){mmAlert('Ongeldige of bestaande mapnaam');this.value='';return}
+ db.folders.push(name);save();fillDiscoverBulkOptions();$('discoverBulkFolder').value=name
+};
+$('discoverBulkConfirm').onclick=function(){
+ var items=Array.from(discoverBulkSelected.values()),artist=$('discoverBulkArtist').value,folder=$('discoverBulkFolder').value,link=$('discoverBulkExisting').checked;
+ var added=0,linked=0,skipped=0,now=Date.now();
+ items.forEach(function(item){
+  var existing=db.songs.find(s=>s.youtubeId===item.youtubeId);
+  if(existing){if(folder&&link&&!(existing.folders||[]).includes(folder)){existing.folders=[...(existing.folders||[]),folder];existing.folderUpdatedAt=now;existing.updatedAt=now;linked++}else skipped++;return}
+  var name=artist==='__auto__'?findArtist(item.channel):artist;
+  if(name==='__new__')name='';
+  db.songs.push({id:'song-'+now+'-'+item.youtubeId,youtubeId:item.youtubeId,title:cleanImportedTitle(item.title,name||item.channel),artist:name||'',folders:folder?[folder]:[],favorite:false,updatedAt:now,folderUpdatedAt:now});
+  db.deletedVideos=db.deletedVideos||{};delete db.deletedVideos[item.youtubeId];if(typeof durableDeleted!=='undefined')delete durableDeleted[item.youtubeId];db.restoredVideos=db.restoredVideos||{};db.restoredVideos[item.youtubeId]=now;added++
+ });
+ if(added||linked){save();render()}
+ $('discoverBulkDialog').close();discoverBulkSelected.clear();$('discoverResults').querySelectorAll('.discover-checkbox').forEach(x=>x.checked=false);refreshDiscoverBulkSelection();refreshDiscoverLibraryStatus();
+ $('discoverStatus').textContent='Verwerkt: '+added+' toegevoegd, '+linked+' gekoppeld, '+skipped+' overgeslagen. '+(folder?'Open map '+folder+' om ze te bekijken.':'Open de bibliotheek om ze te bekijken.')
+};
 var discoverPage='',discoverTerm='',discoverBusy=false,discoverSeen=new Set(),discoverCount=0,discoverRequest=0;
 async function loadDiscover(more){
  if(discoverBusy)return;
