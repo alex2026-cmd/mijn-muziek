@@ -354,7 +354,16 @@ $('playingLink').onclick=function(){
 };
 document.addEventListener('fullscreenchange',function(){if(!document.fullscreenElement&&$('videoBox').classList.contains('video-fullscreen-fallback')){exitVideoFullscreen()}});
 document.addEventListener('keydown',function(e){if(e.key==='Escape'&&$('videoBox').classList.contains('video-fullscreen-fallback'))exitVideoFullscreen()});
-function renderArtists(){var holder=$('artists');holder.replaceChildren();db.artists.forEach(function(a){var row=elem('div',undefined,'row');row.style.marginBottom='8px';row.append(elem('span','🎤 '+a));var edit=elem('button','✎','ghost');edit.onclick=function(){var newer=prompt('Naam van de artiest',a);if(!newer||!newer.trim())return;newer=newer.trim();db.songs.forEach(function(s){if(s.artist===a)s.artist=newer});db.artists=db.artists.map(function(x){return x===a?newer:x});save();render()};row.append(edit);holder.append(row)});if(!db.artists.length)holder.append(elem('p','Nog geen artiesten toegevoegd.','muted'))}
+function renderArtists(){var holder=$('artists');holder.replaceChildren();db.artists.forEach(function(a){var row=elem('div',undefined,'row');row.style.marginBottom='8px';row.append(elem('span','🎤 '+a));var edit=elem('button','✎','ghost');edit.onclick=function(){var newer=prompt('Naam van de artiest',a);if(!newer||!newer.trim())return;newer=newer.trim();db.songs.forEach(function(s){if(s.artist===a)s.artist=newer});db.artists=db.artists.map(function(x){return x===a?newer:x});Object.keys(db.artistAliases||{}).forEach(k=>{if(db.artistAliases[k].name===a)db.artistAliases[k]={name:newer,updatedAt:Date.now()}});save();render()};var merge=elem('button','Samenvoegen','ghost');merge.title='Andere artiest of YouTube-kanaal koppelen aan '+a;merge.onclick=function(){
+ var source=prompt('Welke bestaande artiestnaam of YouTube-kanaalnaam wil je samenvoegen met '+a+'?');
+ if(!source||!source.trim())return;source=source.trim();
+ if(artistKey(source)===artistKey(a)){alert('Deze artiest is al gekoppeld.');return}
+ var old=db.artists.find(x=>artistKey(x)===artistKey(source));
+ if(!confirm((old?'Artiest '+old:'Kanaal '+source)+' koppelen aan '+a+'? '+(old?'Bestaande nummers worden ook aangepast.':'Nieuwe imports worden voortaan automatisch herkend.')))return;
+ rememberArtistAlias(source,a);
+ if(old){db.songs.forEach(song=>{if(song.artist===old){song.artist=a;song.updatedAt=Date.now()}});db.artists=db.artists.filter(x=>x!==old);Object.keys(db.artistAliases||{}).forEach(k=>{if(db.artistAliases[k].name===old)db.artistAliases[k]={name:a,updatedAt:Date.now()}})}
+ save();render()
+ };row.append(edit,merge);holder.append(row)});if(!db.artists.length)holder.append(elem('p','Nog geen artiesten toegevoegd.','muted'))}
 function clearRemovedCurrent(){
  if(!current||db.songs.some(x=>x.youtubeId===current.youtubeId))return;
  var removedId=current.youtubeId;
