@@ -383,7 +383,7 @@ $('bulkDeleteLibrary').onclick=async function(){
  db.playlists.forEach(function(p){if((p.songIds||[]).some(id=>ids.has(id))){p.songIds=p.songIds.filter(id=>!ids.has(id));p.updatedAt=now}});
  db.songs=db.songs.filter(song=>!ids.has(song.youtubeId));
  localStorage.setItem(DELETE_KEY,JSON.stringify(durableDeleted));
- bulkSelected.clear();queue=queue.filter(id=>!ids.has(id));clearRemovedCurrent();save();render();if(nextToPlay)play(nextToPlay,true);
+ bulkSelected.clear();queue=queue.filter(id=>!ids.has(id));clearRemovedCurrent();save();render();if(nextToPlay){queue=sortSongsAlphabetically(db.songs.filter(item=>view==='all'||view==='favorites'&&item.favorite||view==='unfiled'&&!(item.folders||[]).length||(item.folders||[]).includes(view))).map(item=>item.youtubeId);queueName=view;play(nextToPlay,true);}
  statusDrive(n+' nummers naar de prullenbak verplaatst. Wijzigingen worden met Google Drive gesynchroniseerd.');
 };
 
@@ -414,9 +414,11 @@ async function unlinkSongFromFolder(song,folder){
  var saved=db.songs.find(x=>x.youtubeId===song.youtubeId);
  if(!saved||!(saved.folders||[]).includes(folder))return;
  if(!await mmConfirm('Dit nummer alleen uit de map '+folder+' verwijderen? Het blijft in je bibliotheek en in andere mappen.'))return;
+ var wasPlaying=!!(current&&current.youtubeId===saved.youtubeId);
+ var nextToPlay=wasPlaying?nextSongAfterRemoval(new Set([saved.youtubeId])):null;
  saved.folders=saved.folders.filter(name=>name!==folder);
  saved.folderUpdatedAt=Date.now();saved.updatedAt=saved.folderUpdatedAt;
- if(current&&current.youtubeId===saved.youtubeId)current=saved;
+ if(wasPlaying){queue=sortSongsAlphabetically(db.songs.filter(item=>(item.folders||[]).includes(folder))).map(item=>item.youtubeId);queueName=folder;$('queueLabel').textContent=folder;if(nextToPlay){play(nextToPlay,true)}else{try{if(ytPlayer&&typeof ytPlayer.stopVideo==='function')ytPlayer.stopVideo()}catch(e){}current=null;isPlaying=false;updatePlayButton()}}
  save();render();
 }
 function nextSongAfterRemoval(removedIds){
