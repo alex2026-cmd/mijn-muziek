@@ -371,6 +371,7 @@ $('bulkDeleteLibrary').onclick=async function(){
  var n=songs.length;
  if(!await mmConfirm(n+' '+(n===1?'nummer':'nummers')+' uit de volledige bibliotheek verwijderen?\n\nDe nummers verdwijnen uit ALLE muziekmappen en afspeellijsten. Ze blijven herstelbaar in de Prullenbak.\n\nDe × per nummer verwijdert nog steeds alleen de koppeling met deze map.'))return;
  var now=Date.now(),ids=new Set(songs.map(s=>s.youtubeId));
+ var nextToPlay=nextSongAfterRemoval(ids);
  songs.forEach(function(song){
   var playlists=db.playlists.filter(p=>(p.songIds||[]).includes(song.youtubeId)).map(p=>p.id);
   putInTrash('song',song.youtubeId,song.title,{song:{...song,folders:[...(song.folders||[])]},playlistIds:playlists});
@@ -380,7 +381,7 @@ $('bulkDeleteLibrary').onclick=async function(){
  db.playlists.forEach(function(p){if((p.songIds||[]).some(id=>ids.has(id))){p.songIds=p.songIds.filter(id=>!ids.has(id));p.updatedAt=now}});
  db.songs=db.songs.filter(song=>!ids.has(song.youtubeId));
  localStorage.setItem(DELETE_KEY,JSON.stringify(durableDeleted));
- bulkSelected.clear();clearRemovedCurrent();save();render();
+ bulkSelected.clear();queue=queue.filter(id=>!ids.has(id));clearRemovedCurrent();save();render();if(nextToPlay)play(nextToPlay,true);
  statusDrive(n+' nummers naar de prullenbak verplaatst. Wijzigingen worden met Google Drive gesynchroniseerd.');
 };
 
@@ -416,8 +417,17 @@ async function unlinkSongFromFolder(song,folder){
  if(current&&current.youtubeId===saved.youtubeId)current=saved;
  save();render();
 }
+function nextSongAfterRemoval(removedIds){
+ if(!current||!removedIds.has(current.youtubeId))return null;
+ var ordered=sortSongsAlphabetically(db.songs.slice().concat([]));
+ var remaining=ordered.filter(song=>!removedIds.has(song.youtubeId));
+ if(!remaining.length)return null;
+ var currentIndex=ordered.findIndex(song=>song.youtubeId===current.youtubeId);
+ return remaining.find(song=>ordered.indexOf(song)>currentIndex)||remaining[0];
+}
 async function removeSong(song){
 var id=song.youtubeId;
+var nextToPlay=nextSongAfterRemoval(new Set([id]));
 putInTrash('song',id,song.title,{song:{...song,folders:[...(song.folders||[])]}});
 var deletionTime=Date.now();
 db.deletedVideos=db.deletedVideos||{};
@@ -426,7 +436,7 @@ durableDeleted[id]=deletionTime;
 localStorage.setItem(DELETE_KEY,JSON.stringify(durableDeleted));
 db.songs=db.songs.filter(x=>x.youtubeId!==id);
 queue=queue.filter(videoId=>videoId!==id);
-clearRemovedCurrent();save();render();
+clearRemovedCurrent();save();render();if(nextToPlay)play(nextToPlay,true);
 if(!tokenValid()){statusDrive('Nummer lokaal verwijderd. Verbind Google opnieuw om de verwijdering op andere apparaten door te voeren.');return}
 statusDrive('Verwijdering in Google Drive opslaan…');
 try{
