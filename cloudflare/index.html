@@ -742,7 +742,7 @@ $('songForm').onsubmit=function(e){
    if(current&&current.youtubeId===beforeId){current=original;$('footTitle').textContent=title;$('footArtist').textContent=artist||'YouTube';$('nowPlaying').textContent=title+' — '+(artist||'Onbekende artiest')}
    if(beforeId!==id&&current===original&&$('videoBox').querySelector('iframe')){current=null;play(original)}
   }else db.songs.push({id:String(Date.now()),youtubeId:id,title,artist,folders:selected,favorite:false,updatedAt:Date.now()});
-  save();clearTest();$('songDialog').close();$('songForm').reset();editing=null;importArtistSource='';importArtistHandled=false;hideImportArtistChoice();$('songError').textContent='';render();
+  save();clearTest();$('songDialog').close();$('songForm').reset();editing=null;importArtistSource='';importArtistHandled=false;hideImportArtistChoice();$('songError').textContent='';render();renderRecommendedVideos();
   if($('discoverDialog').open){
    $('discoverStatus').textContent=wasEditing?'✓ Wijzigingen opgeslagen. Je kunt verder zoeken.':'✓ Nummer opgeslagen in je bibliotheek. Je kunt verder zoeken.';
    var found=Array.from($('discoverResults').querySelectorAll('.discover-result')).find(row=>{var img=row.querySelector('img');return img&&img.src.includes(id)});
