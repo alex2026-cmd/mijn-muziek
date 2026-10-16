@@ -235,15 +235,16 @@ $('discoverClose').onclick=function(){$('discoverDialog').close()};
 $('discoverCancelTop').onclick=function(){$('discoverDialog').close()};
 function refreshDiscoverLibraryStatus(){
  if(!$('discoverDialog').open)return;
+ var removed=0;
  $('discoverResults').querySelectorAll('.discover-result[data-youtube-id]').forEach(function(row){
-  var stored=db.songs.find(s=>s.youtubeId===row.dataset.youtubeId);
-  var info=row.querySelector('.discover-result-info');
-  var marker=info&&info.querySelector('.discover-library-status');
-  if(stored&&!marker){marker=elem('small','✓ In bibliotheek','discover-library-status');info.append(marker)}
-  else if(!stored&&marker)marker.remove();
-  var action=row.querySelector('.discover-result-actions button:last-child');
-  if(action){action.textContent=stored?'＋ Koppelen':'＋ Toevoegen';action.title=stored?'Dit nummer staat al in je bibliotheek. Koppel het aan een map, submap of afspeellijst.':'Voeg dit nieuwe nummer toe aan je muziekbibliotheek.'}
+  if(db.songs.some(song=>song.youtubeId===row.dataset.youtubeId)){
+   if(activeDiscoverRow===row)closeDiscoverPreview();
+   discoverBulkSelected.delete(row.dataset.youtubeId);row.remove();removed++
+  }
  });
+ if(removed)discoverCount=Math.max(0,discoverCount-removed);
+ Array.from($('discoverResults').querySelectorAll('.discover-result-number')).forEach(function(number,index){number.textContent=String(index+1)});
+ refreshDiscoverBulkSelection()
 }
 var discoverBulkSelected=new Map();
 function refreshDiscoverBulkSelection(){
@@ -317,7 +318,7 @@ async function loadDiscover(more){
   if(!response.ok)throw Error(data.error||'Zoeken is niet beschikbaar');
   if(requestNo!==discoverRequest)return;
   (data.items||[]).forEach(function(item){
-   if(discoverSeen.has(item.youtubeId))return;discoverSeen.add(item.youtubeId);discoverCount++;
+   if(discoverSeen.has(item.youtubeId)||db.songs.some(song=>song.youtubeId===item.youtubeId)){discoverSeen.add(item.youtubeId);return}discoverSeen.add(item.youtubeId);discoverCount++;
    var row=elem('div',undefined,'discover-result'),number=elem('span',String(discoverCount),'discover-result-number'),img=elem('img');img.src=item.thumbnail;img.alt='';
    var info=elem('div',undefined,'discover-result-info');info.append(elem('strong',item.title),elem('small',item.channel));
    var existing=db.songs.find(x=>x.youtubeId===item.youtubeId);if(existing){var mark=elem('small','✓ In bibliotheek','discover-library-status');info.append(mark)}row.dataset.youtubeId=item.youtubeId;row.classList.add('has-select');var checkbox=elem('input',undefined,'discover-checkbox');checkbox.type='checkbox';checkbox.dataset.id=item.youtubeId;checkbox.dataset.item=JSON.stringify(item);checkbox.setAttribute('aria-label','Selecteer '+item.title);checkbox.checked=discoverBulkSelected.has(item.youtubeId);checkbox.onchange=function(){if(this.checked)discoverBulkSelected.set(item.youtubeId,item);else discoverBulkSelected.delete(item.youtubeId);refreshDiscoverBulkSelection()};var preview=elem('button','▶ Voorbeeld','ghost');preview.type='button';preview.title='Bekijk en beluister deze video zonder hem op te slaan';preview.onclick=function(){openDiscoverPreview(item,row)};var button=elem('button',existing?'＋ Koppelen':'＋ Toevoegen','ghost');button.title=existing?'Dit nummer staat al in je bibliotheek. Koppel het aan een map, submap of afspeellijst.':'Voeg dit nieuwe nummer toe aan je muziekbibliotheek.';
