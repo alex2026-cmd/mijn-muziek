@@ -193,13 +193,13 @@ function permanentlyTrashItem(item){item.removed=true;item.data=null;item.update
 $('emptyTrash').onclick=async function(){var items=(db.trash||[]).filter(x=>!x.removed);if(!items.length)return;if(!await mmConfirm('Alle '+items.length+' onderdelen definitief uit de prullenbak verwijderen? Dit kan niet ongedaan worden gemaakt.'))return;items.forEach(x=>{x.removed=true;x.data=null;x.updatedAt=Date.now()});save();renderTrash()};
 function closeMenu(){document.getElementById('mainSidebar').classList.remove('open');$('menuBackdrop').classList.remove('open');$('menuToggle').setAttribute('aria-expanded','false')}function openMenu(){document.getElementById('mainSidebar').classList.add('open');$('menuBackdrop').classList.add('open');$('menuToggle').setAttribute('aria-expanded','true')}function recordSongListen(song){if(!song||!song.youtubeId)return;var entry=listens[song.youtubeId]||{count:0};entry.count=(entry.count||0)+1;entry.last=Date.now();listens[song.youtubeId]=entry;try{localStorage.setItem(listenKey,JSON.stringify(listens))}catch(e){}}
 function musicSuggestions(){var ranked=db.songs.slice().map(function(song){var activity=listens[song.youtubeId]||{};return{song:song,score:(song.favorite?6:0)+Math.min(12,(activity.count||0)*2)+(playPositions[song.youtubeId]?2:0)}}).filter(x=>x.song.artist&&x.song.artist!=='YouTube'&&x.song.artist!=='Onbekende artiest').sort((a,b)=>b.score-a.score);var seen=new Set(),result=[];ranked.forEach(function(x){var artist=x.song.artist.trim(),key=artist.toLocaleLowerCase('nl');if(!seen.has(key)&&result.length<8){seen.add(key);result.push({label:'Meer zoals '+artist,query:artist+' similar artists music'})}});return result}
-function launchMusicSuggestion(query){$('discoverDialog').showModal();$('discoverQuery').value=query;loadDiscover(false)}
+function launchMusicSuggestion(query){resetDiscoverSearch();$('discoverDialog').showModal();$('discoverQuery').value=query;loadDiscover(false)}
 function renderMusicSuggestions(){var items=musicSuggestions();[['homeRecommendations',4],['discoverRecommendations',8]].forEach(function(target){var host=$(target[0]);if(!host)return;host.replaceChildren();if(!items.length){host.append(elem('span','Voeg artiesten of favorieten toe om persoonlijke suggesties te krijgen.','small'));return}items.slice(0,target[1]).forEach(function(item){var b=elem('button',item.label,'ghost recommend-chip');b.type='button';b.onclick=function(){launchMusicSuggestion(item.query)};host.append(b)})})}
 var recommendFeedbackKey='mijn-muziek-aanbevelingen-v2',recommendFeedback={};try{recommendFeedback=JSON.parse(localStorage.getItem(recommendFeedbackKey))||{}}catch(e){}
 var recommendedVideos=[],recommendedBusy=false,recommendSeed=0;
 function saveRecommendFeedback(id,choice){recommendFeedback[id]=choice;try{localStorage.setItem(recommendFeedbackKey,JSON.stringify(recommendFeedback))}catch(e){}renderRecommendedVideos()}
 function addRecommendedVideo(item){var saved=db.songs.find(song=>song.youtubeId===item.youtubeId);if(saved){addSongToPlaylist(saved);return}$('addSong').click();$('songUrl').value='https://www.youtube.com/watch?v='+item.youtubeId;$('songTitle').value=cleanImportedTitle(item.title,item.channel);applyImportedArtist(item.channel);checkLink()}
-function previewRecommendedVideo(item){if(!$('discoverDialog').open)$('discoverDialog').showModal();closeDiscoverPreview();var row=elem('div',undefined,'discover-result');$('discoverResults').prepend(row);openDiscoverPreview(item,row)}
+function previewRecommendedVideo(item){resetDiscoverSearch();if(!$('discoverDialog').open)$('discoverDialog').showModal();closeDiscoverPreview();var row=elem('div',undefined,'discover-result');$('discoverResults').prepend(row);openDiscoverPreview(item,row)}
 function normalizeRecommendationTitle(title,channel){return artistKey(cleanImportedTitle(title,channel).replace(/\([^)]*\)|\[[^\]]*\]/g,' ').replace(/\b(?:official|video|audio|lyrics?|live|concert|acoustic|remix|visualizer|vevo|hd|4k)\b/gi,' '))}
 function normalizeRecommendationArtist(value){return artistKey(cleanArtistSource(value).replace(/\b(?:music|official|vevo|topic|channel)\b/gi,' '))}
 function findRecommendedLibraryMatch(item){
@@ -238,8 +238,8 @@ function openDiscoverPreview(item,row){
 }
 $('discoverStop').onclick=closeDiscoverPreview;
 $('discoverDialog').addEventListener('close',closeDiscoverPreview);
-$('youtubeDiscover').onclick=function(){closeMenu();renderMusicSuggestions();$('discoverDialog').showModal();$('discoverQuery').focus()};
-$('recommendMore').onclick=function(){closeMenu();renderMusicSuggestions();$('discoverDialog').showModal();$('discoverQuery').focus()};
+$('youtubeDiscover').onclick=function(){closeMenu();renderMusicSuggestions();resetDiscoverSearch();$('discoverDialog').showModal();$('discoverQuery').focus()};
+$('recommendMore').onclick=function(){closeMenu();renderMusicSuggestions();resetDiscoverSearch();$('discoverDialog').showModal();$('discoverQuery').focus()};
 $('discoverClose').onclick=function(){$('discoverDialog').close()};
 $('discoverCancelTop').onclick=function(){$('discoverDialog').close()};
 function refreshDiscoverLibraryStatus(){
@@ -314,6 +314,10 @@ $('discoverBulkConfirm').onclick=function(){
  $('discoverStatus').textContent='Verwerkt: '+added+' toegevoegd, '+linked+' gekoppeld, '+skipped+' overgeslagen. '+(folder?'Open map '+folder+' om ze te bekijken.':'Open de bibliotheek om ze te bekijken.')
 };
 var discoverPage='',discoverTerm='',discoverBusy=false,discoverSeen=new Set(),discoverCount=0,discoverRequest=0;
+function resetDiscoverSearch(){
+ discoverRequest++;discoverBusy=false;discoverPage='';discoverTerm='';discoverSeen.clear();discoverCount=0;discoverBulkSelected.clear();
+ closeDiscoverPreview();$('discoverQuery').value='';$('discoverResults').replaceChildren();$('discoverStatus').textContent='';$('discoverMore').classList.add('hidden');$('discoverSelectAll').checked=false;refreshDiscoverBulkSelection()
+}
 async function loadDiscover(more){
  if(discoverBusy)return;
  var q=$('discoverQuery').value.trim();if(q.length<2)return;
@@ -342,7 +346,7 @@ async function loadDiscover(more){
   status.textContent=discoverCount?discoverCount+' resultaten geladen'+(discoverPage?' · er zijn meer resultaten':''):'Geen resultaten gevonden.';
   moreBtn.classList.toggle('hidden',!discoverPage);
  }catch(error){if(requestNo===discoverRequest){status.textContent=error.message||'Zoeken niet beschikbaar';moreBtn.classList.toggle('hidden',!more||!discoverPage)}}
- finally{discoverBusy=false}
+ finally{if(requestNo===discoverRequest)discoverBusy=false}
 }
 $('discoverSearchForm').onsubmit=function(e){e.preventDefault();loadDiscover(false)};
 $('discoverMore').onclick=function(){loadDiscover(true)};
