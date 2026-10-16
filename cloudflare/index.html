@@ -425,6 +425,7 @@ db.deletedVideos[id]=deletionTime;
 durableDeleted[id]=deletionTime;
 localStorage.setItem(DELETE_KEY,JSON.stringify(durableDeleted));
 db.songs=db.songs.filter(x=>x.youtubeId!==id);
+queue=queue.filter(videoId=>videoId!==id);
 clearRemovedCurrent();save();render();
 if(!tokenValid()){statusDrive('Nummer lokaal verwijderd. Verbind Google opnieuw om de verwijdering op andere apparaten door te voeren.');return}
 statusDrive('Verwijdering in Google Drive opslaan…');
@@ -538,7 +539,10 @@ function clearRemovedCurrent(){
  if(!current||db.songs.some(x=>x.youtubeId===current.youtubeId))return;
  var removedId=current.youtubeId;
  current=null;isPlaying=false;queue=queue.filter(id=>id!==removedId);
- if(ytPlayer&&typeof ytPlayer.stopVideo==='function'){try{ytPlayer.stopVideo()}catch(e){}}
+ clearTimeout(playbackCheckTimer);playbackAttempt++;
+ try{if(ytPlayer&&typeof ytPlayer.destroy==='function')ytPlayer.destroy()}catch(e){}
+ ytPlayer=null;playerLoadedId=null;pendingVideo=null;pendingSeek=0;
+ $('videoPlaybackError').classList.add('hidden');
  $('videoBox').replaceChildren(elem('p','Kies een nummer om de YouTube-video hier af te spelen.','muted player-empty'));
  $('nowPlaying').textContent='Nog geen nummer geselecteerd';
  $('footTitle').textContent='Mijn Muziek';$('footArtist').textContent='Selecteer een nummer';
