@@ -421,10 +421,18 @@ async function unlinkSongFromFolder(song,folder){
 }
 function nextSongAfterRemoval(removedIds){
  if(!current||!removedIds.has(current.youtubeId))return null;
- var ordered=sortSongsAlphabetically(db.songs.slice().concat([]));
+ var playlist=getPlaylist(),ordered;
+ if(playlist){ordered=playlistSongs(playlist)}
+ else if(view==='favorites'){ordered=db.songs.filter(song=>song.favorite)}
+ else if(view==='unfiled'){ordered=db.songs.filter(song=>!(song.folders||[]).length)}
+ else if(view==='home'){ordered=db.songs.filter(song=>playPositions[song.youtubeId]&&playPositions[song.youtubeId].at)}
+ else if(view==='all'){ordered=db.songs.slice()}
+ else{ordered=db.songs.filter(song=>(song.folders||[]).includes(view))}
+ if(!playlist)sortSongsAlphabetically(ordered);
+ if($('librarySort')&&$('librarySort').value==='za'&&view!=='home')ordered.reverse();
+ var currentIndex=ordered.findIndex(song=>song.youtubeId===current.youtubeId);
  var remaining=ordered.filter(song=>!removedIds.has(song.youtubeId));
  if(!remaining.length)return null;
- var currentIndex=ordered.findIndex(song=>song.youtubeId===current.youtubeId);
  return remaining.find(song=>ordered.indexOf(song)>currentIndex)||remaining[0];
 }
 async function removeSong(song){
