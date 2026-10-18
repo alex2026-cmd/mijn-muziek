@@ -59,7 +59,7 @@ async function mmGuestApi(request,env,url){
  if(path==='/gast'&&method==='GET'){
   const response=await fetch('https://raw.githubusercontent.com/alex2026-cmd/mijn-muziek/main/cloudflare/gast.html',{cf:{cacheTtl:60}});
   if(!response.ok)return page('Gastomgeving tijdelijk niet beschikbaar',503);
-  return new Response(response.body,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','content-security-policy':"default-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://i.ytimg.com; script-src 'self' 'unsafe-inline' https://www.youtube.com https://www.youtube-nocookie.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; img-src 'self' data: https://i.ytimg.com; style-src 'self' 'unsafe-inline'; connect-src 'self'"}}); 
+  return new Response(response.body,{headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','permissions-policy':'autoplay=(self "https://www.youtube.com" "https://www.youtube-nocookie.com")','content-security-policy':"default-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://i.ytimg.com; script-src 'self' 'unsafe-inline' https://www.youtube.com https://www.youtube-nocookie.com; frame-src https://www.youtube.com https://www.youtube-nocookie.com; img-src 'self' data: https://i.ytimg.com; style-src 'self' 'unsafe-inline'; connect-src 'self'"}}); 
  }
  if(!path.startsWith('/api/guest/')&&!path.startsWith('/api/music-admin/'))return null;
  if(method!=='GET'&&!mmMutate(request))return mmBad('Ongeldige herkomst',403);
