@@ -219,7 +219,7 @@ function playlistSongs(p){return sortSongsAlphabetically((p.songIds||[]).map(id=
 async function createPlaylist(){var name=await mmPrompt('Naam van de nieuwe afspeellijst');if(!name||!name.trim())return;var p={id:'pl-'+Date.now()+'-'+Math.random().toString(36).slice(2,7),name:name.trim(),songIds:[],updatedAt:Date.now()};db.playlists.push(p);save();folderView('playlist:'+p.id)}
 $('addPlaylist').onclick=createPlaylist;
 var destinationSong=null;
-function destinationOptions(){var type=$('destinationType').value,sel=$('destinationSelect');sel.replaceChildren();var items=type==='folder'?sortFolderNames(db.folders.slice()):db.playlists.filter(p=>!p.deletedAt).sort((a,b)=>a.name.localeCompare(b.name,'nl',{sensitivity:'base',numeric:true}));sel.append(new Option(items.length?'Kies een bestemming':'Nog geen bestemmingen',''));items.forEach(function(item){sel.append(new Option(type==='folder'?(submapParent(item)?'　↳ 📂 '+submapLeaf(item)+'  ('+submapParent(item)+')':'📁 '+item):'🎶 '+item.name,type==='folder'?item:item.id))});if(items.length===1)sel.value=type==='folder'?items[0]:items[0].id;$('destinationNew').textContent=type==='folder'?'＋ Nieuwe hoofdmap':'＋ Nieuwe afspeellijst';$('destinationMessage').textContent='';$('destinationSave').disabled=!items.length}
+function destinationOptions(){var type=$('destinationType').value,sel=$('destinationSelect');sel.replaceChildren();var items=type==='folder'?sortFolderNames(db.folders.slice()):db.playlists.filter(p=>!p.deletedAt).sort((a,b)=>a.name.localeCompare(b.name,'nl',{sensitivity:'base',numeric:true}));sel.append(new Option(items.length?'Kies een bestemming':'Nog geen bestemmingen',''));items.forEach(function(item){var label;if(type==='folder'){var depth=submapDepth(item),prefix=depth?'\u00a0'.repeat(depth*3)+'↳ 📂 ':'📁 ';label=prefix+submapLeaf(item)+(depth?'  ('+submapParent(item)+')':'')}else label='🎶 '+item.name;sel.append(new Option(label,type==='folder'?item:item.id))});if(items.length===1)sel.value=type==='folder'?items[0]:items[0].id;$('destinationNew').textContent=type==='folder'?'＋ Nieuwe hoofdmap':'＋ Nieuwe afspeellijst';$('destinationMessage').textContent='';$('destinationSave').disabled=!items.length}
 var activeDiscoverRow=null;
 function closeDiscoverPreview(){
  if(activeDiscoverRow){var host=activeDiscoverRow.nextElementSibling;if(host&&host.classList.contains('discover-inline-player'))host.remove();activeDiscoverRow.classList.remove('preview-open');activeDiscoverRow=null}
@@ -389,8 +389,9 @@ $('shuffleToggle').onclick=function(){
 };
 refreshPlayModes();
 var subfoldersOpen={};try{subfoldersOpen=JSON.parse(localStorage.getItem('mijn-muziek-submappen-open')||'{}')||{}}catch(e){subfoldersOpen={}}
-function submapParent(name){var ix=name.indexOf(' / ');return ix<0?'':name.slice(0,ix)}
-function submapLeaf(name){var ix=name.indexOf(' / ');return ix<0?name:name.slice(ix+3)}
+function submapParent(name){var ix=name.lastIndexOf(' / ');return ix<0?'':name.slice(0,ix)}
+function submapLeaf(name){var ix=name.lastIndexOf(' / ');return ix<0?name:name.slice(ix+3)}
+function submapDepth(name){return (String(name||'').match(/ \/ /g)||[]).length}
 function matchingArtistFolders(artist){
  var key=artistKey(artist);if(!key)return[];
  var roots=db.folders.filter(function(folder){return !submapParent(folder)&&artistKey(folder)===key});
@@ -413,12 +414,28 @@ function autoSelectArtistFolder(artist){
 }
 $('artistFolderCancel').onclick=function(){pendingArtistFolders=[];$('artistFolderDialog').close();renderSelectedFolders()};
 $('artistFolderConfirm').onclick=function(){var selected=document.querySelector('input[name="artistFolderOption"]:checked');if(selected&&pendingArtistFolders.includes(selected.value)){if(!chosenFolders.includes(selected.value))chosenFolders.push(selected.value);autoArtistFolder=selected.value}pendingArtistFolders=[];$('artistFolderDialog').close();renderSelectedFolders()};
-async function createSubmap(parent){if(submapParent(parent)){mmAlert('Je kunt maximaal één niveau submappen maken.');return}var value=await mmPrompt('Naam van de submap in '+parent);if(value===null)return;var leaf=value.trim();if(!leaf)return;if(leaf.includes('/')||leaf.length>90){mmAlert('Gebruik een mapnaam zonder schuine streep (/) en maximaal 90 tekens.');return}var full=parent+' / '+leaf;if(db.folders.some(x=>x.toLocaleLowerCase('nl')===full.toLocaleLowerCase('nl'))){mmAlert('Deze submap bestaat al.');return}db.folders.push(full);save();render();folderView(full)}
+async function createSubmap(parent){if(!db.folders.includes(parent)){mmAlert('De bovenliggende map bestaat niet meer.');return}var value=await mmPrompt('Naam van de submap in '+parent);if(value===null)return;var leaf=value.trim();if(!leaf)return;if(leaf.includes('/')||leaf.length>90){mmAlert('Gebruik een mapnaam zonder schuine streep (/) en maximaal 90 tekens.');return}var full=parent+' / '+leaf;if(db.folders.some(x=>x.toLocaleLowerCase('nl')===full.toLocaleLowerCase('nl'))){mmAlert('Deze submap bestaat al.');return}db.folders.push(full);save();render();folderView(full)}
 function sortFolderNames(names){return names.sort((a,b)=>String(a||'').localeCompare(String(b||''),'nl',{sensitivity:'base',numeric:true}))}
-function renderFolders(){var side=$('sideFolders'),tiles=$('folderTiles');side.replaceChildren();tiles.replaceChildren();var folders=sortFolderNames(db.folders.slice());var roots=folders.filter(x=>!submapParent(x));var children=folders.filter(x=>submapParent(x));var visible=new Set(roots);var groups=new Map();children.forEach(function(x){var parent=submapParent(x);if(!groups.has(parent))groups.set(parent,[]);groups.get(parent).push(x)});groups.forEach(function(items,parent){if(!visible.has(parent)){roots.push(parent);visible.add(parent)}});sortFolderNames(roots);groups.forEach(items=>sortFolderNames(items));
- function addRow(folder,level){var n=db.songs.filter(s=>(s.folders||[]).includes(folder)).length;var wrap=elem('div',undefined,'folderEntry');if(level)wrap.classList.add('subfolder');var b=elem('button',(level?'↳ 📂 ':'📁 ')+submapLeaf(folder)+' ('+n+')');b.title=folder;b.onclick=function(){folderView(folder)};wrap.append(b);if(!level){var kids=groups.get(folder)||[];if(kids.length){var expanded=subfoldersOpen[folder]!==false;var toggle=elem('button','', 'folderToggle');var arrow=elem('span',expanded?'⌄':'›','folderToggleIcon');arrow.setAttribute('aria-hidden','true');toggle.append(arrow);toggle.type='button';toggle.title=(expanded?'Submappen inklappen':'Submappen uitklappen')+' · '+folder;toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-expanded',String(expanded));toggle.onclick=function(){subfoldersOpen[folder]=subfoldersOpen[folder]===false?true:false;localStorage.setItem('mijn-muziek-submappen-open',JSON.stringify(subfoldersOpen));renderFolders()};wrap.append(toggle)}var add=elem('button','＋','folderAdd');add.title='Submap maken in '+folder;add.setAttribute('aria-label','Nieuwe submap in '+folder);add.onclick=function(){createSubmap(folder)};wrap.append(add)}
- var edit=elem('button','⋯');edit.title='Map beheren';edit.setAttribute('aria-label','Map '+folder+' beheren');edit.onclick=function(){manageFolder(folder)};wrap.append(edit);side.append(wrap)}
- roots.forEach(function(folder){addRow(folder,0);if(subfoldersOpen[folder]!==false)(groups.get(folder)||[]).forEach(x=>addRow(x,1));var n=db.songs.filter(s=>(s.folders||[]).includes(folder)).length;var kids=groups.get(folder)||[];var tile=elem('button',folder+String.fromCharCode(10)+n+' '+(n===1?'nummer':'nummers')+(kids.length?String.fromCharCode(10)+kids.length+' '+(kids.length===1?'submap':'submappen'):''),'tile');tile.style.whiteSpace='pre-line';tile.onclick=function(){folderView(folder)};var tileEdit=elem('button','⋯','folderTileEdit');tileEdit.title='Map beheren';tileEdit.onclick=function(){manageFolder(folder)};var tileWrap=elem('div',undefined,'folderTileWrap');tileWrap.append(tile,tileEdit);tiles.append(tileWrap)})
+function renderFolders(){
+ var side=$('sideFolders'),tiles=$('folderTiles');side.replaceChildren();tiles.replaceChildren();
+ var folders=sortFolderNames(db.folders.slice()),roots=folders.filter(function(x){return !submapParent(x)}),groups=new Map();
+ folders.filter(function(x){return !!submapParent(x)}).forEach(function(x){var parent=submapParent(x);if(!groups.has(parent))groups.set(parent,[]);groups.get(parent).push(x)});
+ groups.forEach(function(items,parent){sortFolderNames(items);if(!db.folders.includes(parent)&&!roots.includes(parent))roots.push(parent)});sortFolderNames(roots);
+ function addRow(folder,level){
+  var n=db.songs.filter(function(s){return (s.folders||[]).includes(folder)}).length,kids=groups.get(folder)||[],wrap=elem('div',undefined,'folderEntry');
+  if(level){wrap.classList.add('subfolder');wrap.style.marginLeft=(level*16)+'px';wrap.style.width='calc(100% - '+(level*16)+'px)'}
+  var b=elem('button',(level?'↳ 📂 ':'📁 ')+submapLeaf(folder)+' ('+n+')');b.title=folder;b.onclick=function(){folderView(folder)};wrap.append(b);
+  if(kids.length){var expanded=subfoldersOpen[folder]!==false,toggle=elem('button','', 'folderToggle'),arrow=elem('span',expanded?'⌄':'›','folderToggleIcon');arrow.setAttribute('aria-hidden','true');toggle.append(arrow);toggle.type='button';toggle.title=(expanded?'Submappen inklappen':'Submappen uitklappen')+' · '+folder;toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-expanded',String(expanded));toggle.onclick=function(){subfoldersOpen[folder]=subfoldersOpen[folder]===false?true:false;localStorage.setItem('mijn-muziek-submappen-open',JSON.stringify(subfoldersOpen));renderFolders()};wrap.append(toggle)}
+  var add=elem('button','＋','folderAdd');add.title='Submap maken in '+folder;add.setAttribute('aria-label','Nieuwe submap in '+folder);add.onclick=function(){createSubmap(folder)};wrap.append(add);
+  var edit=elem('button','⋯');edit.title='Map beheren';edit.setAttribute('aria-label','Map '+folder+' beheren');edit.onclick=function(){manageFolder(folder)};wrap.append(edit);side.append(wrap);
+  if(subfoldersOpen[folder]!==false)kids.forEach(function(child){addRow(child,level+1)})
+ }
+ roots.forEach(function(folder){
+  addRow(folder,0);
+  var n=db.songs.filter(function(s){return (s.folders||[]).includes(folder)}).length,kids=groups.get(folder)||[];
+  var tile=elem('button',folder+String.fromCharCode(10)+n+' '+(n===1?'nummer':'nummers')+(kids.length?String.fromCharCode(10)+kids.length+' '+(kids.length===1?'submap':'submappen'):''),'tile');tile.style.whiteSpace='pre-line';tile.onclick=function(){folderView(folder)};
+  var tileEdit=elem('button','⋯','folderTileEdit');tileEdit.title='Map beheren';tileEdit.onclick=function(){manageFolder(folder)};var tileWrap=elem('div',undefined,'folderTileWrap');tileWrap.append(tile,tileEdit);tiles.append(tileWrap)
+ })
 }
 function scrollToPlayingCard(){var target=$('playingCard');if(!target)return;var bounds=target.getBoundingClientRect();if(bounds.top<0||bounds.top>window.innerHeight*.55)target.scrollIntoView({behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'})}
 var bulkSelected=new Set(),bulkVisible=[],bulkMode='copy';
@@ -772,35 +789,45 @@ function folderMappingsApply(mappings){
  Object.entries(mappings).forEach(([oldName,newName])=>{db.folderRenames[oldName]={to:newName,at:now}});
  db.folders=next;db.songs.forEach(song=>{var old=song.folders||[],updated=[...new Set(old.map(x=>Object.prototype.hasOwnProperty.call(mappings,x)?mappings[x]:x).filter(Boolean))];if(updated.length!==old.length||updated.some((x,i)=>x!==old[i])){song.folders=updated;song.updatedAt=now}});
  if(Object.prototype.hasOwnProperty.call(mappings,view))view=mappings[view]||'all';
+ var openNext={...subfoldersOpen};Object.keys(mappings).forEach(function(oldName){if(Object.prototype.hasOwnProperty.call(openNext,oldName)){openNext[mappings[oldName]]=openNext[oldName];delete openNext[oldName]}});subfoldersOpen=openNext;localStorage.setItem('mijn-muziek-submappen-open',JSON.stringify(subfoldersOpen));
  save();render();return true
 }
 function manageFolder(name){
- selectedManagedFolder=name;
- $('folderManageName').textContent=name;
- $('folderManageInfo').textContent='';
- var parent=submapParent(name),move=$('folderMoveArea'),select=$('folderMoveTarget');
- move.classList.toggle('hidden',!parent);select.replaceChildren();
- if(parent){var roots=db.folders.filter(x=>!submapParent(x)&&x!==parent).sort((a,b)=>a.localeCompare(b,'nl'));select.append(new Option(roots.length?'Kies een hoofdmap':'Geen andere hoofdmap',''));roots.forEach(x=>select.add(new Option(x,x)));$('folderMoveConfirm').disabled=!roots.length}
+ selectedManagedFolder=name;$('folderManageName').textContent=name;$('folderManageInfo').textContent='';
+ var parent=submapParent(name),move=$('folderMoveArea'),select=$('folderMoveTarget');move.classList.toggle('hidden',!parent);select.replaceChildren();
+ if(parent){var roots=db.folders.filter(function(x){return !submapParent(x)&&x!==parent}).sort((a,b)=>a.localeCompare(b,'nl'));select.append(new Option(roots.length?'Kies een hoofdmap':'Geen andere hoofdmap',''));roots.forEach(function(x){select.add(new Option(x,x))});$('folderMoveConfirm').disabled=!roots.length}
  $('folderManageDialog').showModal()
 }
 $('folderManageClose').onclick=function(){$('folderManageDialog').close()};
 $('folderManageRename').onclick=function(){var name=selectedManagedFolder;$('folderManageDialog').close();renameFolder(name)};
 $('folderMoveConfirm').onclick=function(){
- var old=selectedManagedFolder,parent=submapParent(old),target=$('folderMoveTarget').value;
- if(!parent||!target||!db.folders.includes(target)||submapParent(target)){$('folderManageInfo').textContent='Kies een geldige hoofdmap.';return}
- var next=target+' / '+submapLeaf(old);if(next===old)return;
- if(db.folders.some(x=>x.toLowerCase()===next.toLowerCase())){$('folderManageInfo').textContent='Deze submap bestaat al in de gekozen hoofdmap.';return}
- if(folderMappingsApply({[old]:next})){$('folderManageDialog').close()}
+ var old=selectedManagedFolder,target=$('folderMoveTarget').value;
+ if(!submapParent(old)||!target||!db.folders.includes(target)||submapParent(target)){ $('folderManageInfo').textContent='Kies een geldige hoofdmap.';return}
+ var next=target+' / '+submapLeaf(old),mappings={};
+ db.folders.filter(function(x){return x===old||x.startsWith(old+' / ')}).forEach(function(x){mappings[x]=next+x.slice(old.length)});
+ if(folderMappingsApply(mappings))$('folderManageDialog').close()
 };
 $('folderManageDelete').onclick=async function(){
- var name=selectedManagedFolder,parent=submapParent(name),children=db.folders.filter(x=>submapParent(x)===name);
- var note=children.length?'De '+children.length+' submap(pen) worden zelfstandige hoofdmappen. ':'';
- if(!await mmConfirm('Map '+name+' naar de prullenbak verplaatsen? '+note+'De muzieknummers blijven in je bibliotheek.'))return;
- var names=[name,...children];putInTrash('folder',name,name,{names,members:db.songs.map(song=>({id:song.youtubeId,folders:(song.folders||[]).filter(f=>names.includes(f))})).filter(x=>x.folders.length)});
- var mappings={[name]:''};children.forEach(child=>{mappings[child]=submapLeaf(child)});
- if(folderMappingsApply(mappings)){$('folderManageDialog').close()}
+ var name=selectedManagedFolder,descendants=db.folders.filter(function(x){return x===name||x.startsWith(name+' / ')}),children=descendants.filter(function(x){return x!==name});
+ var note=children.length?' De onderliggende mappen worden als zelfstandige mappen behouden.':'';
+ if(!await mmConfirm('Map '+name+' naar de prullenbak verplaatsen?'+note+' De muzieknummers blijven in je bibliotheek.'))return;
+ var names=descendants;putInTrash('folder',name,name,{names,members:db.songs.map(function(song){return{id:song.youtubeId,folders:(song.folders||[]).filter(function(f){return names.includes(f)})}}).filter(function(x){return x.folders.length})});
+ var mappings={[name]:''};children.forEach(function(child){mappings[child]=child.slice(name.length+3)});
+ if(folderMappingsApply(mappings))$('folderManageDialog').close()
 };
-async function renameFolder(oldName){var parent=submapParent(oldName);var value=await mmPrompt('Nieuwe naam voor de muziekmap',submapLeaf(oldName));if(value===null)return;var leaf=value.trim();if(!leaf||leaf===submapLeaf(oldName))return;if(leaf.includes('/')||leaf.length>90){mmAlert('Gebruik een mapnaam zonder / en maximaal 90 tekens.');return}var name=parent?parent+' / '+leaf:leaf;var mappings={};mappings[oldName]=name;if(!parent){db.folders.filter(x=>submapParent(x)===oldName).forEach(x=>{mappings[x]=name+x.slice(oldName.length)})}var renamed=new Set(db.folders.map(x=>mappings[x]||x).map(x=>x.toLocaleLowerCase('nl')));if(renamed.size!==db.folders.length){mmAlert('Er bestaat al een map met deze naam.');return}var now=Date.now();db.folderRenames=db.folderRenames||{};Object.entries(mappings).forEach(([before,after])=>{db.folderRenames[before]={to:after,at:now}});db.folders=db.folders.map(x=>mappings[x]||x);db.songs.forEach(song=>{var changed=(song.folders||[]).some(x=>mappings[x]);if(changed){song.folders=[...new Set(song.folders.map(x=>mappings[x]||x))];song.updatedAt=now}});if(view in mappings)view=mappings[view];if(!parent&&Object.prototype.hasOwnProperty.call(subfoldersOpen,oldName)){subfoldersOpen[name]=subfoldersOpen[oldName];delete subfoldersOpen[oldName];localStorage.setItem('mijn-muziek-submappen-open',JSON.stringify(subfoldersOpen))}save();render()}
+async function renameFolder(oldName){
+ var value=await mmPrompt('Nieuwe naam voor de muziekmap',submapLeaf(oldName));if(value===null)return;
+ var leaf=value.trim();if(!leaf||leaf===submapLeaf(oldName))return;
+ if(leaf.includes('/')||leaf.length>90){mmAlert('Gebruik een mapnaam zonder / en maximaal 90 tekens.');return}
+ var parent=submapParent(oldName),name=parent?parent+' / '+leaf:leaf,mappings={};
+ db.folders.filter(function(x){return x===oldName||x.startsWith(oldName+' / ')}).forEach(function(x){mappings[x]=name+x.slice(oldName.length)});
+ var mapped=new Set(),valid=true;
+ db.folders.forEach(function(x){var next=mappings[x]||x,key=next.toLocaleLowerCase('nl');if(mapped.has(key))valid=false;mapped.add(key)});
+ if(!valid){mmAlert('Er bestaat al een map met deze naam.');return}
+ var opened={...subfoldersOpen};Object.keys(mappings).forEach(function(before){if(Object.prototype.hasOwnProperty.call(opened,before)){opened[mappings[before]]=opened[before];delete opened[before]}});
+ subfoldersOpen=opened;localStorage.setItem('mijn-muziek-submappen-open',JSON.stringify(subfoldersOpen));
+ folderMappingsApply(mappings)
+}
 async function addFolder(){var s=await mmPrompt('Naam van de nieuwe muziekmap');if(s&&s.trim()&&!db.folders.includes(s.trim())){db.folders.push(s.trim());save();render()}}
 $('addFolder').onclick=addFolder;$('addFolderSide').onclick=addFolder;
 $('addArtist').onclick=async function(){var a=await mmPrompt('Naam van de artiest');if(a&&a.trim()&&!db.artists.includes(a.trim())){db.artists.push(a.trim());save();render()}};
