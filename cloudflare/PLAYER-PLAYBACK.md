@@ -1,6 +1,10 @@
 # YouTube-afspelen: bekende werkende configuratie
 
-Laatst bevestigd: 19 oktober 2026. De eigenaar heeft gemeld dat video's weer afspelen.
+Laatst bevestigd: 19 oktober 2026. De video's speelden weer af nadat de spelerimplementatie was hersteld.
+
+## Oorzaak en oplossing
+
+De hoofdspeler maakte eerst zelf een iframe en gaf dat daarna aan de YouTube IFrame API. De eerder gekozen privacyhost `youtube-nocookie.com` hielp niet; alleen teruggaan naar `youtube.com` loste het probleem nog niet op. De oplossing was de API zelf het iframe te laten maken vanuit `div#youtubeMount`. Daarna werkte de speler weer.
 
 ## Configuratie in `cloudflare/index.html`
 
@@ -25,4 +29,4 @@ Laatst bevestigd: 19 oktober 2026. De eigenaar heeft gemeld dat video's weer afs
 - Speler terug naar de IFrame API met een `div`: [e221372](https://github.com/alex2026-cmd/mijn-muziek/commit/e221372b3adb72ebf1385ae43789da23d05d2f0c)
 - Foutmelding verduidelijkt en directe YouTube-fallback toegevoegd: [d5eabe3](https://github.com/alex2026-cmd/mijn-muziek/commit/d5eabe33a00024748788ac6dd1a2654c502e938b)
 
-De oorzaak die de eigenaar zelf heeft gevonden, was op dat moment nog niet beschreven; deze notitie legt daarom de bevestigde configuratie en testafspraken vast zonder een oorzaak te veronderstellen.
+Deze oorzaak en oplossing zijn vastgesteld tijdens de technische analyse en daarna door de eigenaar bevestigd als werkend.
