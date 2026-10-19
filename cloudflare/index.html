@@ -392,6 +392,7 @@ var subfoldersOpen={};try{subfoldersOpen=JSON.parse(localStorage.getItem('mijn-m
 function submapParent(name){var ix=name.lastIndexOf(' / ');return ix<0?'':name.slice(0,ix)}
 function submapLeaf(name){var ix=name.lastIndexOf(' / ');return ix<0?name:name.slice(ix+3)}
 function submapDepth(name){return (String(name||'').match(/ \/ /g)||[]).length}
+function folderTreeLabel(name){var depth=submapDepth(name),prefix=depth?'\u00a0'.repeat(depth*3)+'↳ 📂 ':'📁 ';return prefix+submapLeaf(name)+(depth?'  · '+submapParent(name):'')}
 function matchingArtistFolders(artist){
  var key=artistKey(artist);if(!key)return[];
  var roots=db.folders.filter(function(folder){return !submapParent(folder)&&artistKey(folder)===key});
@@ -401,7 +402,7 @@ function matchingArtistFolders(artist){
 function openArtistFolderDialog(artist,folders){
  pendingArtistFolders=folders.slice();$('artistFolderInfo').textContent='Er zijn meerdere passende mappen voor '+artist+'. Kies de map voor dit nummer:';
  var options=$('artistFolderOptions');options.replaceChildren();
- folders.forEach(function(folder,index){var label=elem('label',undefined,'artist-folder-choice');var radio=elem('input');radio.type='radio';radio.name='artistFolderOption';radio.value=folder;radio.checked=index===0;var text=elem('span',folder);label.append(radio,text);options.append(label)});
+ folders.forEach(function(folder,index){var label=elem('label',undefined,'artist-folder-choice');var radio=elem('input');radio.type='radio';radio.name='artistFolderOption';radio.value=folder;radio.checked=index===0;var text=elem('span',folderTreeLabel(folder));label.append(radio,text);options.append(label)});
  $('artistFolderDialog').showModal()
 }
 function autoSelectArtistFolder(artist){
@@ -741,7 +742,7 @@ $('importArtistLinkCancel').onclick=function(){$('importArtistLinkDialog').close
 $('importArtistLinkConfirm').onclick=function(){var artist=$('importArtistLinkSelect').value;if(!artist)return;finishImportArtist(artist);$('importArtistLinkDialog').close()};
 $('importArtistSkip').onclick=function(){importArtistHandled=true;hideImportArtistChoice()};
 
-function selectOptions(){var a=$('songArtist');var value=a.value;a.replaceChildren();a.append(new Option('Geen artiest selecteren',''));activeArtistNames().forEach(function(x){a.append(new Option(x,x))});a.append(new Option('＋ Nieuwe artiest aanmaken…','__new__'));if(db.artists.includes(value))a.value=value;var f=$('songFolders');f.replaceChildren();f.append(new Option('Kies een map om toe te voegen…',''));sortFolderNames(db.folders.slice()).forEach(function(x){f.append(new Option(x,x))});f.append(new Option('＋ Nieuwe map aanmaken…','__new__'));renderSelectedFolders()}
+function selectOptions(){var a=$('songArtist');var value=a.value;a.replaceChildren();a.append(new Option('Geen artiest selecteren',''));activeArtistNames().forEach(function(x){a.append(new Option(x,x))});a.append(new Option('＋ Nieuwe artiest aanmaken…','__new__'));if(db.artists.includes(value))a.value=value;var f=$('songFolders');f.replaceChildren();f.append(new Option('Kies een map om toe te voegen…',''));sortFolderNames(db.folders.slice()).forEach(function(x){f.append(new Option(folderTreeLabel(x),x))});f.append(new Option('＋ Nieuwe map aanmaken…','__new__'));renderSelectedFolders()}
 function renderSelectedFolders(){var target=$('selectedFolders');target.replaceChildren();if(chosenFolders.length){target.append(elem('strong',autoArtistFolder?'Automatisch geselecteerde map:':'Geselecteerde mappen:'));target.append(document.createTextNode(' '))}chosenFolders.forEach(function(x){var b=elem('button','✕ '+x,'ghost');b.type='button';b.style.margin='0 6px 6px 0';b.title='Verwijder mapkoppeling';b.onclick=function(){chosenFolders=chosenFolders.filter(function(y){return y!==x});if(autoArtistFolder===x)autoArtistFolder='';renderSelectedFolders()};target.append(b)})}
 $('songArtist').onchange=async function(){if(this.value!=='__new__'){autoSelectArtistFolder(this.value);if(importArtistSource){importArtistHandled=true;if(this.value)rememberArtistAlias(importArtistSource,this.value);hideImportArtistChoice()}return}var a=await mmPrompt('Naam van de nieuwe artiest');if(a&&a.trim()){a=a.trim();if(!db.artists.includes(a))db.artists.push(a);save();selectOptions();$('songArtist').value=a;autoSelectArtistFolder(a)}else this.value=''};
 $('songFolders').onchange=async function(){var f=this.value;if(f==='__new__'){f=await mmPrompt('Naam van de nieuwe map');if(f&&f.trim()){f=f.trim();if(!db.folders.includes(f))db.folders.push(f);save();selectOptions()}else{this.value='';return}}if(f&&!chosenFolders.includes(f))chosenFolders.push(f);this.value='';renderSelectedFolders()};
