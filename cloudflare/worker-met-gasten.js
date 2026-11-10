@@ -9,6 +9,7 @@ function random(n=32){return b64(crypto.getRandomValues(new Uint8Array(n)))}
 async function digest(value){return b64(new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(value))))}
 async function key(env){const raw=Uint8Array.from(atob(env.SESSION_ENCRYPTION_KEY),c=>c.charCodeAt(0));if(raw.length!==32)throw Error('SESSION_ENCRYPTION_KEY moet 32 bytes zijn');return crypto.subtle.importKey('raw',raw,'AES-GCM',false,['encrypt','decrypt'])}
 async function encrypt(value,env){const iv=crypto.getRandomValues(new Uint8Array(12));const encrypted=new Uint8Array(await crypto.subtle.encrypt({name:'AES-GCM',iv},await key(env),encoder.encode(value)));return b64(iv)+'.'+b64(encrypted)}
+async function decrypt(value,env){const [iv,cipher]=String(value||'').split('.');if(!iv||!cipher)throw Error('Ongeldige versleutelde gegevens');return new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(iv)},await key(env),unb64(cipher)))}
 function page(msg,status=200){return new Response('<!doctype html><html lang="nl"><meta charset="utf-8"><title>Mijn Muziek</title><body style="font:18px system-ui;max-width:650px;margin:80px auto;background:#20132e;color:white;padding:24px"><h2>Mijn Muziek</h2><p>'+msg+'</p></body></html>',{status,headers:{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}})}
 function json(o,status=200){return new Response(JSON.stringify(o),{status,headers:{'content-type':'application/json','cache-control':'no-store'}})}
 function cookie(name,value,age=600){return name+'='+encodeURIComponent(value)+'; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age='+age}
@@ -259,35 +260,58 @@ export default {
    const row=await env.DB.prepare('SELECT * FROM auth_sessions WHERE session_id_hash=? AND revoked_at IS NULL AND expires_at>?').bind(await digest(sid),Math.floor(Date.now()/1000)).first();
    if(!row)return json({error:'Sessie verlopen'},401);
    if(url.pathname==='/api/session')return json({connected:true});
-   if(!['GET','POST','PATCH'].includes(request.method))return json({error:'Methode niet toegestaan'},405);
-   if(request.method!=='GET'&&request.headers.get('origin')!==url.origin)return json({error:'Ongeldige herkomst'},403);
-   let dest;
-   if(url.pathname==='/api/drive/files'&&request.method==='GET'){
-    dest='https://www.googleapis.com/drive/v3/files?'+url.searchParams;
-   }else if(url.pathname.startsWith('/api/drive/file/')&&request.method==='GET'){
-    const id=url.pathname.slice('/api/drive/file/'.length);
-    if(!/^[a-zA-Z0-9_-]{5,200}$/.test(id))return json({error:'Ongeldig bestand'},400);
+   const path=url.pathname,method=request.method;
+   if(!['GET','POST','PATCH','DELETE'].includes(method))return json({error:'Methode niet toegestaan'},405);
+   if(method!=='GET'&&request.headers.get('origin')!==url.origin)return json({error:'Ongeldige herkomst'},403);
+   let dest,operation='proxy';
+   if(path==='/api/drive/files'&&method==='GET')dest='https://www.googleapis.com/drive/v3/files?'+url.searchParams;
+   else if(path.startsWith('/api/drive/file/')&&method==='GET'){
+    const id=path.slice('/api/drive/file/'.length);if(!/^[a-zA-Z0-9_-]{5,200}$/.test(id))return json({error:'Ongeldig bestand'},400);
     dest='https://www.googleapis.com/drive/v3/files/'+id+'?alt=media';
-   }else if(url.pathname.startsWith('/api/drive/upload/')&&request.method==='PATCH'){
-    const id=url.pathname.slice('/api/drive/upload/'.length);
-    if(!/^[a-zA-Z0-9_-]{5,200}$/.test(id))return json({error:'Ongeldig bestand'},400);
+   }else if(path.startsWith('/api/drive/delete/')&&method==='DELETE'){
+    const id=path.slice('/api/drive/delete/'.length);if(!/^[a-zA-Z0-9_-]{5,200}$/.test(id))return json({error:'Ongeldig bestand'},400);
+    dest='https://www.googleapis.com/drive/v3/files/'+id;
+   }else if(path.startsWith('/api/drive/upload/')&&method==='PATCH'){
+    const id=path.slice('/api/drive/upload/'.length);if(!/^[a-zA-Z0-9_-]{5,200}$/.test(id))return json({error:'Ongeldig bestand'},400);
     dest='https://www.googleapis.com/upload/drive/v3/files/'+id+'?uploadType=media';
-   }else if(url.pathname==='/api/drive/upload-new'&&request.method==='POST'){
-    dest='https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
-   }else return json({error:'Route niet toegestaan'},404);
+   }else if(path==='/api/drive/upload-new'&&method==='POST')dest='https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+   else if(path==='/api/drive/upload-session'&&method==='POST')operation='start-audio-upload';
+   else if(path==='/api/drive/upload-chunk'&&method==='POST')operation='audio-upload-chunk';
+   else return json({error:'Route niet toegestaan'},404);
    let encrypted;
    try{const [iv,cipher]=row.encrypted_refresh_token.split('.');encrypted=new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:unb64(iv)},await key(env),unb64(cipher)))}catch{return json({error:'Sessie kan niet ontsleuteld worden'},500)}
    const tokenResponse=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:new URLSearchParams({client_id:env.GOOGLE_CLIENT_ID,client_secret:env.GOOGLE_CLIENT_SECRET,grant_type:'refresh_token',refresh_token:encrypted})});
    if(!tokenResponse.ok)return json({error:'Google-toegang verlopen; opnieuw aanmelden vereist'},401);
-   const token=await tokenResponse.json();
-   const headers=new Headers({'authorization':'Bearer '+token.access_token});
-   if(request.method!=='GET'){
-    const ct=request.headers.get('content-type')||'application/json';
-    if(!/^(application\/json|multipart\/related)/i.test(ct))return json({error:'Ongeldig inhoudstype'},415);
-    headers.set('content-type',ct);
+   const token=await tokenResponse.json(),authorization='Bearer '+token.access_token;
+   if(operation==='start-audio-upload'){
+    let data;try{data=await request.json()}catch{return json({error:'Ongeldige uploadgegevens'},400)}
+    if(typeof data.name!=='string'||!/^mijn-muziek-audio-[A-Za-z0-9-]{8,80}\.mp3$/.test(data.name)||data.mimeType!=='audio/mpeg'||!Number.isSafeInteger(data.size)||data.size<1||data.size>104857600)return json({error:'Ongeldig mp3-bestand (maximaal 100 MB)'},400);
+    const begun=await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id%2Cname%2CmimeType%2Csize',{method:'POST',headers:{authorization,'content-type':'application/json','x-upload-content-type':'audio/mpeg','x-upload-content-length':String(data.size)},body:JSON.stringify({name:data.name,parents:['appDataFolder'],mimeType:'audio/mpeg',description:'Privé mp3-bestand voor Mijn Muziek'})});
+    if(!begun.ok)return json({error:'Google Drive kon de mp3-upload niet starten',details:(await begun.text()).slice(0,180)},502);
+    const location=begun.headers.get('location');if(!location||new URL(location).origin!=='https://www.googleapis.com')return json({error:'Google Drive gaf geen geldige uploadverbinding terug'},502);
+    return json({ticket:await encrypt(JSON.stringify({url:location,size:data.size}),env)});
    }
-   const response=await fetch(dest,{method:request.method,headers,...(request.method==='GET'?{}:{body:request.body}),redirect:'manual'});
-   return new Response(response.body,{status:response.status,headers:{'content-type':response.headers.get('content-type')||'application/json','cache-control':'no-store'}});
+   if(operation==='audio-upload-chunk'){
+    const ticket=request.headers.get('x-upload-session')||'',range=request.headers.get('content-range')||'',match=range.match(/^bytes (\d+)-(\d+)\/(\d+)$/);
+    if(!ticket||ticket.length>2000||!match)return json({error:'Ongeldige uploadstap'},400);
+    const begin=Number(match[1]),finish=Number(match[2]),total=Number(match[3]);
+    if(!Number.isSafeInteger(begin)||!Number.isSafeInteger(finish)||!Number.isSafeInteger(total)||begin<0||finish<begin||finish>=total||total>104857600||finish-begin+1>9*1024*1024)return json({error:'Ongeldige uploadgrootte'},400);
+    let sessionUrl;try{const session=JSON.parse(await decrypt(ticket,env));sessionUrl=session.url;const parsed=new URL(sessionUrl);if(parsed.origin!=='https://www.googleapis.com'||!parsed.pathname.startsWith('/upload/drive/v3/files')||Number(session.size)!==total)throw Error('invalid upload endpoint or size')}catch{return json({error:'De Drive-uploadverbinding is ongeldig of verlopen'},400)}
+    const uploaded=await fetch(sessionUrl,{method:'PUT',headers:{'content-range':range,'content-type':'audio/mpeg'},body:request.body,redirect:'manual'});
+    if(uploaded.status===308)return json({complete:false,range:uploaded.headers.get('range')||null});
+    if(!uploaded.ok)return json({error:'Google Drive heeft de mp3-upload geweigerd',details:(await uploaded.text()).slice(0,180)},502);
+    let file;try{file=await uploaded.json()}catch{return json({error:'Google Drive bevestigde het bestand niet'},502)}
+    if(!file.id)return json({error:'Google Drive gaf geen bestands-ID terug'},502);
+    return json({complete:true,file:{id:file.id,name:file.name,mimeType:file.mimeType,size:Number(file.size)||total}});
+   }
+   const headers=new Headers({'authorization':authorization});
+   if(method!=='GET'&&method!=='DELETE'){const ct=request.headers.get('content-type')||'application/json';if(!/^(application\/json|multipart\/related)/i.test(ct))return json({error:'Ongeldig inhoudstype'},415);headers.set('content-type',ct)}
+   if(method==='GET'&&request.headers.has('range'))headers.set('range',request.headers.get('range'));
+   const response=await fetch(dest,{method,headers,...(method==='GET'||method==='DELETE'?{}:{body:request.body}),redirect:'manual'});
+   if(response.status===204)return new Response(null,{status:204,headers:{'cache-control':'no-store'}});
+   const outHeaders=new Headers({'content-type':response.headers.get('content-type')||'application/json','cache-control':'no-store'});
+   for(const header of ['content-length','content-range','accept-ranges','last-modified'])if(response.headers.has(header))outHeaders.set(header,response.headers.get(header));
+   return new Response(response.body,{status:response.status,headers:outHeaders});
   }
   return json({error:'Niet gevonden'},404);
  }
